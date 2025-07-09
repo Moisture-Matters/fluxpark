@@ -1,7 +1,7 @@
-
 import numpy as np
 import datetime as dt
 from typing import Tuple
+
 
 def post_process_daily(
     eta,
@@ -177,8 +177,7 @@ def update_cumulative_fluxes(
         Also updates `old` in place.
     """
     # 1. Yearly reset (except KNMI deficit)
-    if (current_date.day == reset_cum_day and
-            current_date.month == reset_cum_month):
+    if current_date.day == reset_cum_day and current_date.month == reset_cum_month:
         for output_key in cum_par_list:
             if output_key == "prec_def_knmi_cum_ytd_mm":
                 continue
@@ -187,9 +186,7 @@ def update_cumulative_fluxes(
 
     # 2. KNMI precip deficit reset on April 1
     if current_date.day == 1 and current_date.month == 4:
-        old["rain_def_pot_etref_c"] = np.zeros_like(
-            old["rain_def_pot_etref_c"]
-        )
+        old["rain_def_pot_etref_c"] = np.zeros_like(old["rain_def_pot_etref_c"])
 
     # 3. Accumulate
     cum: dict[str, np.ndarray] = {}

@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 from osgeo import gdal
 
+
 def write_output_tif(
     variable,
     filename,
@@ -41,7 +42,7 @@ def write_output_tif(
         GDAL data type constant (default: GDT_Float32).
     """
     # convert soil_cov fraction to percent
-    if 'soil_cov' in filename:
+    if "soil_cov" in filename:
         variable = variable * 100.0
 
     # mask sea and zero landuse
@@ -81,7 +82,7 @@ def write_all_tiffs(
     epsg_code,
     only_yearly_output=False,
     parallel=False,
-    max_workers = None,
+    max_workers=None,
 ):
     """
     Write all requested parameters as GeoTIFFs for a given date.
@@ -115,7 +116,7 @@ def write_all_tiffs(
     max_workers : int, optional
         the amount of parallel workers, by default it will be derived from your machine
     """
-    date_str = date.strftime('%Y%m%d')
+    date_str = date.strftime("%Y%m%d")
     dtype = gdal.GDT_Float32
 
     # skip until year end if requested
@@ -128,9 +129,9 @@ def write_all_tiffs(
     for par in out_par_list:
         filename = f"{date_str}-{par}.tif"
         var = conv_output[par]
-        if var not in daily_output.keys() and var not in cum_output.keys():                
+        if var not in daily_output.keys() and var not in cum_output.keys():
             logging.warning(f"{var} not in the output dicts")
-        array = cum_output[var] if var.endswith('_c') else daily_output[var]
+        array = cum_output[var] if var.endswith("_c") else daily_output[var]
         tasks.append((array, filename))
 
     # wrapper
@@ -156,5 +157,3 @@ def write_all_tiffs(
     else:
         for t in tasks:
             _worker(t)
-
-

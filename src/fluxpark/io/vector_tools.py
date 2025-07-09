@@ -3,26 +3,22 @@ from pathlib import Path
 from osgeo import ogr, osr, gdal
 
 _EXT2DRIVER = {
-    ".gpkg":    "GPKG",
-    ".shp":     "ESRI Shapefile",
+    ".gpkg": "GPKG",
+    ".shp": "ESRI Shapefile",
     ".geojson": "GeoJSON",
-    ".json":    "GeoJSON",
-    ".csv":     "CSV",
-    ".dxf":     "DXF",
-    ".gml":     "GML",
-    ".kml":     "KML",
-    ".gpx":     "GPX",
-    ".fgb":     "FlatGeobuf",
-    ".sqlite":  "SQLite",
+    ".json": "GeoJSON",
+    ".csv": "CSV",
+    ".dxf": "DXF",
+    ".gml": "GML",
+    ".kml": "KML",
+    ".gpx": "GPX",
+    ".fgb": "FlatGeobuf",
+    ".sqlite": "SQLite",
 }
 
 
 def write_point_layer(
-    x,
-    y,
-    values,
-    dst_epsg: int,
-    output_path: Optional[Union[str, Path]] = None
+    x, y, values, dst_epsg: int, output_path: Optional[Union[str, Path]] = None
 ) -> ogr.Layer:
     """
     Write a point layer to memory or disk using GDAL/OGR.
@@ -47,7 +43,7 @@ def write_point_layer(
     # Create empty in-memory vector dataset
     driver_mem = gdal.GetDriverByName("Memory")
     ds_mem = driver_mem.Create("", 0, 0, 0, gdal.GDT_Unknown)
-    
+
     # Define spatial reference system
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(dst_epsg)

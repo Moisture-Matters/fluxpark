@@ -1,5 +1,3 @@
-
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union
@@ -10,7 +8,7 @@ class FluxParkConfig:
     """
     Configuration settings for the FluxPark core simulation model.
 
-    This configuration object contains all general and spatial parameters 
+    This configuration object contains all general and spatial parameters
     required to run the core model. It does not include any Nexus-specific logic.
 
     Parameters
@@ -36,7 +34,7 @@ class FluxParkConfig:
     evap_param_table : str
         Filename of the Excel file containing evaporation parameters.
     output_files : list[str] or str, default = "flagship"
-        List of output parameters to write to file or a string describing differnt 
+        List of output parameters to write to file or a string describing differnt
         combinations of output (all, flagship).
 
     indir : Union[str, Path], default='./input_data'

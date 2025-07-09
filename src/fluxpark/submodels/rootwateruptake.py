@@ -32,7 +32,7 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
     smd_old : ndarray
         Previous soil moisture deficit [L].
     soilm_scp : ndarray
-        Stomatal closure point [L]. The root zone soil moisture deficit at 
+        Stomatal closure point [L]. The root zone soil moisture deficit at
         which ET starts to reduce.
     soilm_pwp : ndarray
         Permanent wilting point [L]. The root zone soil moisture deficit at
@@ -51,10 +51,10 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
     """
     # Input validation
     if not (
-        rain.shape == etp.shape and
-        etp.shape == smd_old.shape and
-        smd_old.shape == soilm_scp.shape and
-        soilm_scp.shape == soilm_pwp.shape
+        rain.shape == etp.shape
+        and etp.shape == smd_old.shape
+        and smd_old.shape == soilm_scp.shape
+        and soilm_scp.shape == soilm_pwp.shape
     ):
         raise ValueError("All input arrays must have the same shape.")
 
@@ -76,10 +76,9 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
 
     # Calculate actual evapotranspiration
     eta[cond1] = etp[cond1]
-    eta[cond2] = (
-        etp[cond2]
-        * ((soilm_pwp[cond2] - smdp[cond2]) / (soilm_pwp[cond2] - soilm_scp[cond2]))
-        )
+    eta[cond2] = etp[cond2] * (
+        (soilm_pwp[cond2] - smdp[cond2]) / (soilm_pwp[cond2] - soilm_scp[cond2])
+    )
 
     # eta[cond3] remains zero
 
@@ -92,9 +91,7 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
 
     smda[cond_drain] = 0.0
     smda[cond_no_drain] = (
-        smd_old[cond_no_drain]
-        - rain[cond_no_drain]
-        + eta[cond_no_drain]
-        )
+        smd_old[cond_no_drain] - rain[cond_no_drain] + eta[cond_no_drain]
+    )
 
     return eta, smdp, smda, drainage

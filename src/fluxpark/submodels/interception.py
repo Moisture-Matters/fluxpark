@@ -70,8 +70,9 @@ def interception_voortman(etp_wet, rain, max_int, cover, int_store_old):
     throughfall = rain - int_add
 
     # Calculate fraction of timestep with interception evaporation
-    with np.errstate(divide='ignore', invalid='ignore'):
-        int_timefrac = np.divide(int_evap, etp_int, out=np.zeros_like(etp_int),
-                          where=etp_int != 0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        int_timefrac = np.divide(
+            int_evap, etp_int, out=np.zeros_like(etp_int), where=etp_int != 0
+        )
 
     return int_evap, int_store, throughfall, int_timefrac

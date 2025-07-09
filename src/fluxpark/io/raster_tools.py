@@ -3,6 +3,7 @@ import numpy as np
 from osgeo import gdal, osr
 import warnings
 
+
 class GeoTiffReader:
     def __init__(self, source_path, band=1, nodata_value=float(-9999)):
         """
@@ -31,12 +32,12 @@ class GeoTiffReader:
         fillnodata=False,
         tempfile_dir=None,
         source_extra=0,
-        **kwargs
+        **kwargs,
     ):
         """
         Read and reproject a GeoTIFF. Reprojection is just done to be sure that
-        the fluxpark inputfiles lineup and fine gird input maps can be used 
-        directly for course calculations. 
+        the fluxpark inputfiles lineup and fine gird input maps can be used
+        directly for course calculations.
 
         Parameters
         ----------
@@ -83,7 +84,7 @@ class GeoTiffReader:
                 targetBand=band_obj,
                 maskBand=None,
                 maxSearchDist=5,
-                smoothingIterations=0
+                smoothingIterations=0,
             )
             ds_temp = None
             ds_in = gdal.Open(temp_path, gdal.GA_ReadOnly)
@@ -102,7 +103,7 @@ class GeoTiffReader:
             "targetAlignedPixels": True,
             "overviewLevel": 0,
             "outputBounds": [x_min, y_min, x_max, y_max],
-            "outputBoundsSRS": f"EPSG:{dst_epsg}"
+            "outputBoundsSRS": f"EPSG:{dst_epsg}",
         }
 
         if source_extra > 0:
@@ -110,17 +111,18 @@ class GeoTiffReader:
 
         if cutline_path:
             warp_opts["cutlineDSName"] = cutline_path
-            
+
         # warp the original tiff to the correct coordinates and cellsize
         ds_warp = gdal.Warp("", ds_in, **warp_opts)
 
         if source_extra > 0:
             # Crop back to the bounding box if source_extra is used
             ds_warp = gdal.Translate(
-                "", ds_warp,
+                "",
+                ds_warp,
                 projWin=[x_min, y_max, x_max, y_min],
                 projWinSRS=f"EPSG:{dst_epsg}",
-                format="VRT"
+                format="VRT",
             )
 
         arr = ds_warp.GetRasterBand(self.band).ReadAsArray().astype(np.float32)
@@ -131,15 +133,16 @@ class GeoTiffReader:
         ds_warp = None
         if fillnodata and temp_path.exists():
             temp_path.unlink()
-            
+
         return arr
+
 
 class NetCDFReader:
     def __init__(self, source_path, variable="prediction", nodata_value=float(-9999)):
         self.source_path = source_path
         self.variable = variable
         self.nodata_value = nodata_value
-        
+
     def read_and_reproject(
         self,
         dst_epsg,
@@ -150,12 +153,12 @@ class NetCDFReader:
         fillnodata=False,
         tempfile_dir=None,
         source_extra=0,
-        **kwargs
+        **kwargs,
     ):
         """
         Read and reproject a GeoTIFF. Reprojection is just done to be sure that
-        the fluxpark inputfiles lineup and fine gird input maps can be used 
-        directly for course calculations. 
+        the fluxpark inputfiles lineup and fine gird input maps can be used
+        directly for course calculations.
 
         Parameters
         ----------
@@ -184,7 +187,7 @@ class NetCDFReader:
             Reprojected raster data as NumPy array.
         """
         src_path_str = str(Path(self.source_path)).replace("\\", "/")
-        
+
         # Open NetCDF and find subdatasets
         ds_nc = gdal.Open(src_path_str)
         subdatasets = ds_nc.GetSubDatasets()
@@ -212,14 +215,14 @@ class NetCDFReader:
             temp_path = Path(tempfile_dir) / "temp_fill.tif"
             ds_temp = driver.CreateCopy(temp_path, ds_in, 0)
             ds_temp = None  # close
-        
+
             ds_temp = gdal.Open(temp_path, gdal.GA_Update)
             band_obj = ds_temp.GetRasterBand(1)
             gdal.FillNodata(
                 targetBand=band_obj,
                 maskBand=None,
                 maxSearchDist=5,
-                smoothingIterations=0
+                smoothingIterations=0,
             )
             ds_temp = None
             ds_in = gdal.Open(temp_path, gdal.GA_ReadOnly)
@@ -236,7 +239,7 @@ class NetCDFReader:
             "targetAlignedPixels": True,
             "overviewLevel": 0,
             "outputBounds": [x_min, y_min, x_max, y_max],
-            "outputBoundsSRS": f"EPSG:{dst_epsg}"
+            "outputBoundsSRS": f"EPSG:{dst_epsg}",
         }
 
         if source_extra > 0:
@@ -248,16 +251,17 @@ class NetCDFReader:
         ds_warp = gdal.Warp("", ds_in, **warp_opts)
         arr = ds_warp.ReadAsArray().astype(np.float32)
         arr[np.isnan(arr)] = self.nodata_value
-        
+
         if source_extra > 0:
             # Crop back to the bounding box if source_extra is used
             ds_warp = gdal.Translate(
-                "", ds_warp,
+                "",
+                ds_warp,
                 projWin=[x_min, y_max, x_max, y_min],
                 projWinSRS=f"EPSG:{dst_epsg}",
-                format="VRT"
+                format="VRT",
             )
-        
+
         # warp the original tiff to the correct coordinates and cellsize
         ds_warp = gdal.Warp("", ds_in, **warp_opts)
 
@@ -270,7 +274,7 @@ class NetCDFReader:
         ds_warp = None
         if fillnodata and temp_path.exists():
             temp_path.unlink()
-            
+
         return arr
 
 
@@ -284,7 +288,7 @@ def write_geotiff(
     epsg_code,
     nodata_value=float(-9999),
     dtype=gdal.GDT_Float32,
-    compress="LZW"
+    compress="LZW",
 ):
     """
     Write a 2D NumPy array to a GeoTIFF, MEM, or VSIMEM raster.
@@ -317,16 +321,16 @@ def write_geotiff(
     -------
     gdal.Dataset or None
         If written in-memory (MEM), returns the dataset. Otherwise None.
-    
+
     Notes
     -----
     Data is written using the GDAL MEM driver if `out_dir` is an empty string.
     In that case, `out_filename` should also be set to "".
-    
+
     Writing to /vsimem/ is only used if `out_dir` explicitly starts with
     "/vsimem/". The dataset is then retrievable via the given path, but not
     returned by this function.
-    
+
     This behavior avoids using the GTiff driver with /vsimem/, which is less
     efficient than the MEM driver for pure in-memory operations.
     """
@@ -337,7 +341,7 @@ def write_geotiff(
 
     # Determine output mode
     is_mem = out_dir == ""
-    
+
     normalized_dir = str(Path(out_dir)).replace("\\", "/").lower()
     is_vsimem = "vsimem" in normalized_dir
 
@@ -365,7 +369,7 @@ def write_geotiff(
         if out_filename.lower().endswith(".vrt"):
             warnings.warn(
                 "You specified a .vrt file, but creating raster data sets "
-                "from np.array's does not produce valid VRT files. Use '.tif'" 
+                "from np.array's does not produce valid VRT files. Use '.tif'"
                 "instead, or use empty string for 'out_dir' and 'out_filename'"
                 " for true in-memory processing."
             )
@@ -398,8 +402,7 @@ def write_geotiff(
     if is_mem:
         return outdata
     elif is_vsimem:
-        return None  # find the file via path. 
+        return None  # find the file via path.
     else:
         outdata = None  # flush to disk
         return None
-

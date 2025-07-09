@@ -5,9 +5,19 @@ from typing import Union, Optional
 from scipy.interpolate import Rbf
 import fluxpark as flp
 
-def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
-                     radius=50000.0, max_points=3, coarse_cellsize=2500.0,
-                     intermediate_path: Optional[Union[str, Path]] = None):
+
+def interpolate_rain(
+    x,
+    y,
+    point_values,
+    dst_epsg,
+    bounds,
+    cellsize,
+    radius=50000.0,
+    max_points=3,
+    coarse_cellsize=2500.0,
+    intermediate_path: Optional[Union[str, Path]] = None,
+):
     """
     Interpolate point rainfall values to a raster grid using gdal.Grid,
     then resample to coarser grid and smooth back to target resolution.
@@ -42,10 +52,9 @@ def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
         Interpolated raster as NumPy array (np.nan = no data).
     """
     x_min, x_max, y_min, y_max = bounds
-    
+
     # 1. create a point data set.
-    ds_point = flp.io.write_point_layer(x, y, point_values,
-                             dst_epsg, intermediate_path)
+    ds_point = flp.io.write_point_layer(x, y, point_values, dst_epsg, intermediate_path)
 
     # 2. Interpolate to coarse grid using IDW
     ncols = int((x_max - x_min) / coarse_cellsize) + 1
@@ -54,7 +63,8 @@ def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
     y_min_snap = y_max - nrows * coarse_cellsize
 
     ds_initial = gdal.Grid(
-        "", ds_point,
+        "",
+        ds_point,
         format="MEM",
         outputBounds=[x_min, y_max, x_max_snap, y_min_snap],
         width=ncols,
@@ -63,18 +73,22 @@ def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
         algorithm=(
             f"invdistnn:power=2.0:smoothing=0.0:"
             f"radius={radius}:max_points={max_points}:"
-            f"min_points=0:nodata=-9999"),
-        zfield="z"
+            f"min_points=0:nodata=-9999"
+        ),
+        zfield="z",
     )
 
     # 3. Warp to coarser grid with averaging
-    x_max_coarse = x_min + (
-        int((x_max - x_min) / coarse_cellsize) + 1) * coarse_cellsize
-    y_min_coarse = y_max - (
-        int((y_max - y_min) / coarse_cellsize) + 1) * coarse_cellsize
+    x_max_coarse = (
+        x_min + (int((x_max - x_min) / coarse_cellsize) + 1) * coarse_cellsize
+    )
+    y_min_coarse = (
+        y_max - (int((y_max - y_min) / coarse_cellsize) + 1) * coarse_cellsize
+    )
 
     ds_coarse = gdal.Warp(
-        "", ds_initial,
+        "",
+        ds_initial,
         dstSRS=f"EPSG:{dst_epsg}",
         format="VRT",
         resampleAlg=gdal.GRA_Average,
@@ -82,12 +96,13 @@ def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
         yRes=-coarse_cellsize,
         outputBounds=[x_min, y_min_coarse, x_max_coarse, y_max],
         outputBoundsSRS=f"EPSG:{dst_epsg}",
-        dstNodata=-9999
+        dstNodata=-9999,
     )
 
     # 4. Warp back to fine resolution with smoothing
     ds_fine = gdal.Warp(
-        "", ds_coarse,
+        "",
+        ds_coarse,
         dstSRS=f"EPSG:{dst_epsg}",
         format="VRT",
         resampleAlg=gdal.GRA_CubicSpline,
@@ -95,7 +110,7 @@ def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
         yRes=-cellsize,
         outputBounds=[x_min, y_min, x_max, y_max],
         outputBoundsSRS=f"EPSG:{dst_epsg}",
-        dstNodata=-9999
+        dstNodata=-9999,
     )
 
     # 5. Read array and clean up
@@ -111,6 +126,7 @@ def interpolate_rain(x, y, point_values, dst_epsg, bounds, cellsize,
 
     return rain
 
+
 def interpolate_makkink(
     x: np.ndarray,
     y: np.ndarray,
@@ -120,7 +136,7 @@ def interpolate_makkink(
     cellsize: float,
     coarse_cellsize: float = 2500.0,
     intermediate_path: Optional[Union[str, Path]] = None,
-    ) -> np.ndarray:
+) -> np.ndarray:
     """
     Interpolate Makkink reference ET to a raster using
     a thin-plate spline RBF on a coarse grid + GDAL Warp to
@@ -173,7 +189,8 @@ def interpolate_makkink(
 
     # 4. Warp back to full resolution with cubic-spline resampling
     ds_fine = gdal.Warp(
-        "", mak_course_ds,
+        "",
+        mak_course_ds,
         dstSRS=f"EPSG:{dst_epsg}",
         format="VRT",
         resampleAlg=gdal.GRA_CubicSpline,
@@ -181,7 +198,7 @@ def interpolate_makkink(
         yRes=-cellsize,
         outputBounds=[x_min, y_min, x_max, y_max],
         outputBoundsSRS=f"EPSG:{dst_epsg}",
-        dstNodata=-9999
+        dstNodata=-9999,
     )
 
     # 5. Read and post-process
@@ -191,13 +208,11 @@ def interpolate_makkink(
     mak = np.clip(mak, mn * 0.99, mx * 1.01)
 
     # 6. create a point data set for analysis.
-    if intermediate_path: 
-        flp.io.write_point_layer(x, y, point_values,
-                             dst_epsg, intermediate_path)
-    
+    if intermediate_path:
+        flp.io.write_point_layer(x, y, point_values, dst_epsg, intermediate_path)
+
     # 7. Clean up
     mak_course_ds = None
     ds_fine = None
 
     return mak
-

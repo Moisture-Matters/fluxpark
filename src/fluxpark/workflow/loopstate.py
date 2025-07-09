@@ -1,4 +1,3 @@
-
 import numpy as np
 from typing import Dict, List
 
@@ -39,4 +38,3 @@ def update_loop_state(
         else:
             # Carry over today's value
             old[py_key] = daily_output[py_key].copy()
-

@@ -19,7 +19,16 @@ from . import utils
 from . import workflow
 from .workflow.runner import FluxParkRunner
 
-__all__ = []
+__all__ = [
+    "config",
+    "setup",
+    "io",
+    "postprocessing",
+    "prepgrids",
+    "utils",
+    "workflow",
+    "FluxParkRunner",
+]
 
 for loader, module_name, is_pkg in pkgutil.iter_modules(submodels.__path__):
     if module_name == "__init__":

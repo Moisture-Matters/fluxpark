@@ -1,31 +1,37 @@
 import fluxpark as flp
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from typing import Optional
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from osgeo import gdal
 
 
 _EXT2DRIVER = {
-    ".gpkg":    "GPKG",
-    ".shp":     "ESRI Shapefile",
+    ".gpkg": "GPKG",
+    ".shp": "ESRI Shapefile",
     ".geojson": "GeoJSON",
-    ".json":    "GeoJSON",
-    ".csv":     "CSV",
-    ".dxf":     "DXF",
-    ".gml":     "GML",
-    ".kml":     "KML",      # or "LIBKML" for KMZ
-    ".gpx":     "GPX",
-    ".fgb":     "FlatGeobuf",
-    ".sqlite":  "SQLite",
+    ".json": "GeoJSON",
+    ".csv": "CSV",
+    ".dxf": "DXF",
+    ".gml": "GML",
+    ".kml": "KML",  # or "LIBKML" for KMZ
+    ".gpx": "GPX",
+    ".fgb": "FlatGeobuf",
+    ".sqlite": "SQLite",
 }
 
-def load_fluxpark_raster_inputs(date, indir_rasters, grid_params,
-                               dynamic_landuse, landuse_filename,
-                               root_soilm_scp_filename, root_soilm_pwp_filename,
-                               input_raster_years, imperv, luse_ids):
+
+def load_fluxpark_raster_inputs(
+    date,
+    indir_rasters,
+    grid_params,
+    dynamic_landuse,
+    landuse_filename,
+    root_soilm_scp_filename,
+    root_soilm_pwp_filename,
+    input_raster_years,
+    imperv,
+    luse_ids,
+):
     """
     Load basic raster input files for a given date for the FluxPark model.
 
@@ -76,48 +82,42 @@ def load_fluxpark_raster_inputs(date, indir_rasters, grid_params,
         soilm_scp_file = root_soilm_scp_filename
         soilm_pwp_file = root_soilm_pwp_filename
 
-    reader = flp.io.GeoTiffReader(
-        indir_rasters / landuse_file, nodata_value=0)
+    reader = flp.io.GeoTiffReader(indir_rasters / landuse_file, nodata_value=0)
     landuse_map = reader.read_and_reproject(**grid_params)
 
-    reader = flp.io.GeoTiffReader(
-        indir_rasters / soilm_scp_file, nodata_value=-9999)
-    soilm_scp = reader.read_and_reproject(
-        **grid_params).astype(np.float32)
+    reader = flp.io.GeoTiffReader(indir_rasters / soilm_scp_file, nodata_value=-9999)
+    soilm_scp = reader.read_and_reproject(**grid_params).astype(np.float32)
 
-    reader = flp.io.GeoTiffReader(
-        indir_rasters / soilm_pwp_file, nodata_value=-9999)
-    soilm_pwp = reader.read_and_reproject(
-        **grid_params).astype(np.float32)
+    reader = flp.io.GeoTiffReader(indir_rasters / soilm_pwp_file, nodata_value=-9999)
+    soilm_pwp = reader.read_and_reproject(**grid_params).astype(np.float32)
 
     # Mask open water and sea
     mask = (landuse_map == 16) | (landuse_map == 17)
-    soilm_scp[mask] = float('nan')
-    soilm_pwp[mask] = float('nan')
+    soilm_scp[mask] = float("nan")
+    soilm_pwp[mask] = float("nan")
 
     # Compute beta parameter map for soil evaporation
     beta = np.full(
-        (grid_params["nrows"], grid_params["ncols"]), 0.038, dtype=np.float32)
+        (grid_params["nrows"], grid_params["ncols"]), 0.038, dtype=np.float32
+    )
     beta[landuse_map == 15] = 0.02
-    beta[landuse_map == 18] = (
-        (0.038 - 0.02) * (1 - imperv[landuse_map == 18]) + 0.02)
+    beta[landuse_map == 18] = (0.038 - 0.02) * (1 - imperv[landuse_map == 18]) + 0.02
 
     # Warn for unexpected land use codes
     for code in np.unique(landuse_map):
         if code not in luse_ids and code != 0:
-            logging.warning(
-                f"Land use code {code} not in luse-evap conversion table."
-            )
+            logging.warning(f"Land use code {code} not in luse-evap conversion table.")
 
     logging.info("Read basic FluxPark input maps")
 
     return landuse_map, soilm_scp, soilm_pwp, beta
 
+
 def apply_evaporation_parameters(
     luse_ids: NDArray[np.integer],
     evap_ids: NDArray[np.integer],
-    evap_params: pd.DataFrame,
-    doy: NDArray[np.integer],
+    evap_params: dict[str, np.ndarray],
+    doy: int,
     landuse_map: NDArray[np.integer],
     imperv: NDArray[np.floating],
     *,
@@ -171,29 +171,22 @@ def apply_evaporation_parameters(
     openwater_fact = np.zeros(landuse_map.shape, dtype="float32")
     for luse_id in luse_ids:
         evap_id = evap_ids[luse_ids == luse_id].item()
-        is_id_and_doy = (
-            (evap_params["evap_id"] == evap_id) &
-            (evap_params["doy"] == doy)
+        is_id_and_doy = (evap_params["evap_id"] == evap_id) & (
+            evap_params["doy"] == doy
         )
 
-        trans_fact[landuse_map == luse_id] = (
-            evap_params["trans_fact"][is_id_and_doy]
-        )
-        soil_evap_fact[landuse_map == luse_id] = (
-            evap_params["soil_evap_fact"][is_id_and_doy]
-        )
-        int_cap[landuse_map == luse_id] = (
-            evap_params["int_cap"][is_id_and_doy]
-        )
-        soil_cov[landuse_map == luse_id] = (
-            evap_params["soil_cov"][is_id_and_doy]
-        )
-        openwater_fact[landuse_map == luse_id] = (
-            evap_params["openwater_fact"][is_id_and_doy]
-        )
+        trans_fact[landuse_map == luse_id] = evap_params["trans_fact"][is_id_and_doy]
+        soil_evap_fact[landuse_map == luse_id] = evap_params["soil_evap_fact"][
+            is_id_and_doy
+        ]
+        int_cap[landuse_map == luse_id] = evap_params["int_cap"][is_id_and_doy]
+        soil_cov[landuse_map == luse_id] = evap_params["soil_cov"][is_id_and_doy]
+        openwater_fact[landuse_map == luse_id] = evap_params["openwater_fact"][
+            is_id_and_doy
+        ]
 
         if luse_id == 18:
-            mask = (landuse_map == luse_id)
+            mask = landuse_map == luse_id
             tf = trans_fact[mask] * (1 - imperv[mask])
             trans_fact[mask] = tf
 
@@ -205,7 +198,6 @@ def apply_evaporation_parameters(
             ic = int_cap[mask] * (1 - imperv[mask])
             ic[ic < 0.2] = 0.2
             int_cap[mask] = ic
-        
 
         if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
             if luse_id in [11, 12, 19]:
@@ -216,14 +208,8 @@ def apply_evaporation_parameters(
 
                 mask = (landuse_map == luse_id) & (~np.isnan(cover_map))
                 max_table_cov = np.max(
-                    evap_params["soil_cov"][
-                        evap_params["evap_id"] == evap_id
-                    ]
+                    evap_params["soil_cov"][evap_params["evap_id"] == evap_id]
                 )
                 conv_fac = cover_map[mask] / max_table_cov
-                soil_cov[mask] = (
-                    evap_params["soil_cov"][is_id_and_doy] * conv_fac
-                )
+                soil_cov[mask] = evap_params["soil_cov"][is_id_and_doy] * conv_fac
     return trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact
-
-
