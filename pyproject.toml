@@ -1,17 +1,39 @@
 [project]
 name = "fluxpark"
 version = "0.1.0"
-description = "hydrological model to estimate evaporation and groundwater recharge"
-authors = [{ name="Bernard Voortman", email="bernard.voortman@moisture-matters.nl" }]
+description = "Spatially-explicit hydrological model for simulating evaporation fluxes and groundwater recharge"
 readme = "README.md"
-license = {text = "custom"}
 requires-python = ">=3.9"
-dependencies = [
-    "numpy>=1.23.4",
-    "pandas>=1.5.1",
-    "fire>=0.4.0",
-    "scipy>=1.9.2"
+license = { file = "LICENSE.txt" }
+authors = [
+  { name="Bernard Voortman", email="bernard.voortman@moisture-matters.nl" }
 ]
+dependencies = [
+  "numpy>=1.23.4",
+  "pandas>=1.5.1",
+  "scipy>=1.9.2",
+  "openpyxl>=3.0.0",
+]
+
+]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: Other/Proprietary License",  
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Topic :: Scientific/Engineering :: Hydrology",
+]
+
+[project.urls]
+"Homepage"    = "https://github.com/Moisture-Matters/fluxpark"
+"Source"      = "https://github.com/Moisture-Matters/fluxpark"
+"Bug Tracker" = "https://github.com/Moisture-Matters/fluxpark/issues"
+
+[project.optional-dependencies]
+test = ["pytest>=7.0", "pytest-cov", "flake8"]
+docs = ["sphinx", "sphinx-rtd-theme"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
