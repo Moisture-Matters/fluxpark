@@ -27,8 +27,8 @@ classifiers = [
 ]
 
 [project.urls]
-"Homepage"    = "https://github.com/Moisture-Matters/fluxpark"
-"Source"      = "https://github.com/Moisture-Matters/fluxpark"
+Homepage = "https://github.com/Moisture-Matters/fluxpark"
+Source = "https://github.com/Moisture-Matters/fluxpark"
 "Bug Tracker" = "https://github.com/Moisture-Matters/fluxpark/issues"
 
 [project.optional-dependencies]
