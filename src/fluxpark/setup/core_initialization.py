@@ -316,14 +316,26 @@ def load_evap_params(indir: Path, evap_param_table: str) -> dict[str, np.ndarray
     params : dict
         Keys are column names, values are NumPy arrays.
     """
-    sheets = pd.read_excel(  # type: ignore[call]
-        indir / evap_param_table,
-        sheet_name=None,
-        skiprows=range(0, 12),
+    path = indir / evap_param_table
+
+    # 1) get all sheet names
+    xls = pd.ExcelFile(path)
+    all_sheets = xls.sheet_names  # bijv. ['Daily', 'Monthly', 'LICENSE']
+
+    # 2) remove 'LICENSE' sheet (case-insensitive)
+    data_sheets = [s for s in all_sheets if s.lower() != "license"]
+
+    # 3) read only filtered sheets
+    sheets_dict = pd.read_excel(
+        path,
+        sheet_name=data_sheets,
+        skiprows=range(12),
         usecols="A:I",
         na_values=str(-9999),
     )
-    df = pd.concat(sheets, ignore_index=True)
+
+    # 4) Concat en return een enkele DataFrame
+    df = pd.concat(sheets_dict.values(), ignore_index=True)
     data = df.to_dict("list")
     raw = {k: np.array(v) for k, v in data.items()}
     return cast(dict[str, np.ndarray], raw)
