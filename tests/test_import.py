@@ -1,9 +1,10 @@
-import pytest
-import fluxpark
+import importlib.metadata
 
-def test_can_import_fluxpark():
-    """Smoke‐test: fluxpark-module is importeerbaar en heeft een __version__."""
-    assert hasattr(fluxpark, "__version__")
-    # of, als je versie in __init__ exposeert:
-    from fluxpark import __version__
-    assert isinstance(__version__, str)
+def test_package_has_version():
+    """Smoke‐test: fluxpark is installed and has a version string in metadata."""
+    # This reads the version from the installed distribution metadata,
+    # without importing any package code that might require GDAL.
+    version = importlib.metadata.version("fluxpark")
+    assert isinstance(version, str)
+    assert version != ""
+
