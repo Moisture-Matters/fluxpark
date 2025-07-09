@@ -1,7 +1,14 @@
 import importlib
 import pkgutil
+from importlib.metadata import version, PackageNotFoundError
 
-# import all modules dinamically
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:
+    __version__ = "0.0.0"  # for development
+
+
+# import all modules dynamically
 from . import config
 from . import setup
 from . import io
