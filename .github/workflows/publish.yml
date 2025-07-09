@@ -9,12 +9,21 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with: python-version: '3.10'
-      - run: pip install build twine
-      - run: |
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build & Publish
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
           python -m build
-          twine upload dist/* \
-            --username __token__ \
-            --password ${{ secrets.PYPI_API_TOKEN }}
+          twine upload dist/* --username __token__ --password ${{ secrets.PYPI_API_TOKEN }}
