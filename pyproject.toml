@@ -1,0 +1,21 @@
+[project]
+name = "fluxpark"
+version = "0.1.0"
+description = "hydrological model to estimate evaporation and groundwater recharge"
+authors = [{ name="Bernard Voortman", email="bernard.voortman@moisture-matters.nl" }]
+readme = "README.md"
+license = {text = "custom"}
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.23.4",
+    "pandas>=1.5.1",
+    "fire>=0.4.0",
+    "scipy>=1.9.2"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

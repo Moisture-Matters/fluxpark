@@ -1,0 +1,34 @@
+# Virtual environments
+.venv/
+env/
+ENV/
+venv/
+
+# Python-cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Editor-specific files
+.vscode/
+.idea/
+.spyproject/
+.spyderproject/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebooks checkpoints
+.ipynb_checkpoints
+
+# Testoutput or logs
+*.log
+
+# Input- or testdata 
+# data/
+
+# Build
+build/
+dist/
+*.egg-info/
