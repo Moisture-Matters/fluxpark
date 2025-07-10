@@ -192,7 +192,7 @@ def parse_dates(start: str, end: str) -> pd.DatetimeIndex:
     Parameters
     ----------
     start : str
-        Start date string (e.g. '2025-06-01').
+        Start date string (e.g. '2025-06-31').
     end : str
         End date string.
 
@@ -201,8 +201,8 @@ def parse_dates(start: str, end: str) -> pd.DatetimeIndex:
     pd.DatetimeIndex
         Sequence of dates from start to end inclusive.
     """
-    s = pd.to_datetime(start, dayfirst=True, errors="raise")
-    e = pd.to_datetime(end, dayfirst=True, errors="raise")
+    s = pd.to_datetime(start, format="%Y-%m-%d", errors="raise")
+    e = pd.to_datetime(end, format="%Y-%m-%d", errors="raise")
     return pd.date_range(s, e, freq="D")
 
 

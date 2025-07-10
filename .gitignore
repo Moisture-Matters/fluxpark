@@ -33,5 +33,5 @@ build/
 dist/
 *.egg-info/
 
-# Conda-dev environment file
-dev_environment.yml
+# Conda environment files
+*.yml
