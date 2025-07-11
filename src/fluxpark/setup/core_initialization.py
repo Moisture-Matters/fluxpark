@@ -286,13 +286,20 @@ def compute_grid_params(
           "nrows": int
         }
     """
-    ncols = math.ceil((x_max - x_min) / cellsize)
-    nrows = math.ceil((y_max - y_min) / cellsize)
+    # 1) Align bounds on rastergrid (we use target aligned pixels)
+    x_min_aligned = math.floor(x_min / cellsize) * cellsize
+    x_max_aligned = math.ceil(x_max / cellsize) * cellsize
+    y_min_aligned = math.floor(y_min / cellsize) * cellsize
+    y_max_aligned = math.ceil(y_max / cellsize) * cellsize
+
+    ncols = int((x_max_aligned - x_min_aligned) / cellsize)
+    nrows = int((y_max_aligned - y_min_aligned) / cellsize)
+
     cutline = Path(indir_masks) / mask if mask else None
 
     return {
         "dst_epsg": epsg_code,
-        "bounds": (x_min, x_max, y_min, y_max),
+        "bounds": (x_min_aligned, x_max_aligned, y_min_aligned, y_max_aligned),
         "cellsize": cellsize,
         "cutline_path": cutline,
         "ncols": ncols,

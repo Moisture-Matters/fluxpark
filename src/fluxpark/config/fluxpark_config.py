@@ -90,7 +90,6 @@ class FluxParkConfig:
     # Positional (non-default) arguments
     date_start: str
     date_end: str
-    mask: Optional[str]
     calc_epsg_code: int
     x_min: float
     x_max: float
@@ -100,6 +99,7 @@ class FluxParkConfig:
     evap_param_table: str
 
     # Defaulted arguments
+    mask: Optional[str] = None
     output_files: Union[str, list[str], list[int]] = "flagship"
     indir: Union[str, Path] = "./input_data"
     indir_rasters: Optional[Union[str, Path]] = None

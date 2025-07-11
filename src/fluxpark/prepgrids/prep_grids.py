@@ -97,9 +97,7 @@ def load_fluxpark_raster_inputs(
     soilm_pwp[mask] = float("nan")
 
     # Compute beta parameter map for soil evaporation
-    beta = np.full(
-        (grid_params["nrows"], grid_params["ncols"]), 0.038, dtype=np.float32
-    )
+    beta = np.full(np.shape(landuse_map), 0.038, dtype=np.float32)
     beta[landuse_map == 15] = 0.02
     beta[landuse_map == 18] = (0.038 - 0.02) * (1 - imperv[landuse_map == 18]) + 0.02
 

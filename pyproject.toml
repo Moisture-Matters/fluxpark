@@ -1,6 +1,6 @@
 [project]
 name             = "fluxpark"
-version          = "0.1.4"
+version          = "0.1.5"
 description      = "Spatially-explicit hydrological model for simulating evaporation fluxes and groundwater recharge"
 readme           = "README.md"
 requires-python  = ">=3.9"
