@@ -151,7 +151,7 @@ class FluxParkRunner:
         tot_time = time.time()
         tot_time_rain_prep = 0.0
         tot_time_etref_prep = 0.0
-        tot_time_veg_prep = 0.0
+        tot_time_evappar_prep = 0.0
         tot_time_mod_seen = 0.0
         tot_time_int_calc = 0.0
         tot_time_soilevap_calc = 0.0
@@ -167,6 +167,8 @@ class FluxParkRunner:
         for i, date in enumerate(self.dates):
             logging.info(f"t = {date.date()}")
 
+            # read rasters if needed
+            start_time_evappar_prep = time.time()
             is_new_year = date.day == 1 and date.month == 1
             if is_new_year or i == 0:
                 (landuse_map, soilm_scp, soilm_pwp, beta) = (
@@ -188,8 +190,7 @@ class FluxParkRunner:
             assert soilm_pwp is not None, "soilm_pwp must be defined"
             assert beta is not None, "beta must be defined"
 
-            # vegetation data
-            start_time_veg_prep = time.time()
+            # evaporation parameters
             (trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact) = (
                 flp.prepgrids.apply_evaporation_parameters(
                     self.luse_ids,
@@ -203,17 +204,18 @@ class FluxParkRunner:
                     soil_cov_conif=self.soil_cov_conif,
                 )
             )
-            tot_time_veg_prep += time.time() - start_time_veg_prep
+            tot_time_evappar_prep += time.time() - start_time_evappar_prep
 
             # placeholder for rain and etref input
+            start_time_rain_prep = time.time()
             get_rain = self.input_hooks.get("get_rain", self.default_rain_input)
             rain = get_rain(date, self.grid_params)
+            tot_time_rain_prep += (time.time() - start_time_rain_prep)
+
+            start_time_etref_prep = time.time()
             get_etref = self.input_hooks.get("get_etref", self.default_etref_input)
             etref = get_etref(date, self.grid_params)
-
-            # # placeholder for rain and etref input (must be floats)
-            # rain = np.full(np.shape(landuse_map), 1.0).astype("float32")
-            # etref = np.full(np.shape(landuse_map), 1.0).astype("float32")
+            tot_time_etref_prep += (time.time() - start_time_etref_prep)
 
             # interception
             start_time_int_calc = time.time()
@@ -311,7 +313,7 @@ class FluxParkRunner:
         stages = [
             tot_time_rain_prep,
             tot_time_etref_prep,
-            tot_time_veg_prep,
+            tot_time_evappar_prep,
             tot_time_mod_seen,
             tot_time_int_calc,
             tot_time_soilevap_calc,
@@ -330,8 +332,8 @@ class FluxParkRunner:
             f"{tot_time_etref_prep/tot_time*100:.2f} %"
         )
         logging.info(
-            f"preparing vegetation data {tot_time_veg_prep:.2f} sec, "
-            f"{tot_time_veg_prep/tot_time*100:.2f} %"
+            f"preparing evaporation parameters {tot_time_evappar_prep:.2f} sec, "
+            f"{tot_time_evappar_prep/tot_time*100:.2f} %"
         )
         logging.info(
             f"calculation interception {tot_time_int_calc:.2f} sec, "

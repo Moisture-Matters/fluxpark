@@ -78,8 +78,8 @@ def post_process_daily(
     trans_def = trans_pot - trans_act
 
     # 3. Masks for open water / greenhouse and cities
-    mask_open = (landuse_map == 16) | (landuse_map == 8)
-    mask_city = landuse_map == 18
+    mask_open = (landuse_map == 16)  # | (landuse_map == 8)
+    # mask_city = landuse_map == 18
 
     # 4. Copy and mask arrays
     eta_out = eta.copy()
@@ -104,7 +104,8 @@ def post_process_daily(
     ):
         arr[mask_open] = np.nan
 
-    def_trans_out[mask_city] = np.nan
+    # comment out.
+    # def_trans_out[mask_city] = np.nan
 
     # 5. Soil moisture deficit floor
     bad = (smda_out < 0) & (smda_out != -9999)
@@ -185,7 +186,11 @@ def update_cumulative_fluxes(
             old[py_key] = np.zeros_like(old[py_key])
 
     # 2. KNMI precip deficit reset on April 1
-    if current_date.day == 1 and current_date.month == 4:
+    if (
+        "rain_def_pot_etref_c" in old
+        and current_date.day == 1
+        and current_date.month == 4
+    ):
         old["rain_def_pot_etref_c"] = np.zeros_like(old["rain_def_pot_etref_c"])
 
     # 3. Accumulate

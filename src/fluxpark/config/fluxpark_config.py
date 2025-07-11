@@ -18,9 +18,9 @@ class FluxParkConfig:
     date_end : str
         End date of the simulation period (format: 'DD-MM-YYYY').
     mask : Optional[str]
-        Filename of the cutline raster mask used to clip input layers.
+        Filename of the cutline .shp file used to clip input and output rasters.
     calc_epsg_code : int
-        EPSG code for the coordinate reference system used in calculations.
+        EPSG code for the coordinate system used in calculations, Dutch RD = 28992
     x_min : float
         Minimum x-coordinate of the simulation extent.
     x_max : float
@@ -33,10 +33,10 @@ class FluxParkConfig:
         Grid cell size (in map units) used for resampling input rasters.
     evap_param_table : str
         Filename of the Excel file containing evaporation parameters.
-    output_files : list[str] or str, default = "flagship"
-        List of output parameters to write to file or a string describing differnt
-        combinations of output (all, flagship).
-
+   output_files : str or list[str], default="flagship"
+        Identifies the required output files, could be "all", "flagship" or a list of
+        output parameters, e.g. ["prec_mm_d", "evap_total_act_mm_d"] or a list of output
+        IDs, e.g. [1, 4, 8, 10]. Output IDs can be found in fluxpark_output_mapping.csv.
     indir : Union[str, Path], default='./input_data'
         Root directory containing all input files.
     indir_rasters : Optional[Union[str, Path]], default=None
@@ -44,11 +44,19 @@ class FluxParkConfig:
     indir_masks : Optional[Union[str, Path]], default=None
         Directory containing mask rasters. If None, defaults to `indir/masks`.
     landuse_rastername : str, default="{year}_luse_ids.tif"
-        Filename pattern for the yearly land use raster.
+        Filename of the landuse raster (.tif) or the filename pattern of landuse rasters
+        if landuse is allowed to change during the calculation on the first of January.
+        In the latter case you should use placeholders: "{year}" in the filename.
+        FluxPark will use the most recent year in the raster directory if years are
+        missing.
     root_soilm_scp_rastername : str, default="{year}_root_soilm_fc_scp_mm.tif"
-        Filename pattern for the soil moisture field capacity raster (saturated).
+        Filename or filename pattern for the root zone soil moisture content (mm)
+        between field capacity and the stomatal closure point (scp). If landuse changes
+        yearly this file should also be available yearly.
     root_soilm_pwp_rastername : str, default="{year}_root_soilm_fc_pwp_mm.tif"
-        Filename pattern for the soil moisture wilting point raster.
+        Filename or filename pattern for the root zone soil moisture content (mm)
+        between field capacity and the permanent wilting point (pwp). If landuse changes
+        yearly this file should also be available yearly.
     impervdens_rastername : str, default="2018_impervdens.tif"
         Filename of the imperviousness raster.
     soil_cov_decid_rastername : str, default="forest_decid_soilcov_100m_3035.tif"
@@ -70,11 +78,13 @@ class FluxParkConfig:
     parallel : bool, default=True
         Whether to parallelize output writing.
     max_workers : Optional[int], default=None
-        Maximum number of parallel workers (threads) to use.
+        Maximum number of parallel workers (threads) to use. If None it will be derived
+        from your machine (cpu count).
     outdir : Union[str, Path], default="./output_data"
         Output directory where model results are stored.
     intermediate_dir : Optional[Union[str, Path]], default=None
-        Optional intermediate directory for temporary files.
+        Optional intermediate directory for temporary files like point information if
+        using interpolation.
     """
 
     # Positional (non-default) arguments
