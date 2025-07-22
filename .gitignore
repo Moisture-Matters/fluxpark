@@ -35,3 +35,4 @@ dist/
 
 # Conda environment files
 *.yml
+!docs/flp_environment.yml

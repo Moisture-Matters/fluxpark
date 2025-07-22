@@ -67,10 +67,12 @@ def post_process_daily(
         - smda: non‐negative soil moisture deficit
     """
     # 1. Compute transpiration fraction and actual transpiration
-    frac = np.zeros_like(trans_pot)
     num = trans_pot + soil_evap_act_est
-    nz = num != 0
-    frac[nz] = trans_pot[nz] / num[nz]
+    frac = np.zeros_like(trans_pot, dtype="float32")
+    np.divide(trans_pot,
+              num,
+              out=frac,
+              where=(num != 0))
     trans_act = eta * frac
 
     # 2. Actual soil evaporation and transpiration deficit
@@ -107,23 +109,23 @@ def post_process_daily(
     # comment out.
     # def_trans_out[mask_city] = np.nan
 
-    # 5. Soil moisture deficit floor
-    bad = (smda_out < 0) & (smda_out != -9999)
-    smda_out[bad] = 0
+    # 5. non-negative soil moisture deficit
+    smda_out = np.where((smda < 0) & (smda != -9999), 0.0, smda)
 
     # 6. Total evaporation (nan‐safe sum over axis=2)
-    evap_total_act = np.nansum(
-        np.dstack((soil_evap_act, act_trans_out, int_out, open_water_evap_act)),
-        axis=2,
-    )
-    evap_total_pot = np.nansum(
-        np.dstack((est_soil_out, pot_trans_out, int_out, open_water_evap_act)),
-        axis=2,
-    )
+    evap_total_act = soil_evap_act.copy()
+    evap_total_act += trans_act
+    evap_total_act += int_evap
+    evap_total_act += open_water_evap_act
+
+    evap_total_pot = soil_evap_act_est.copy()
+    evap_total_pot += trans_pot
+    evap_total_pot += int_evap
+    evap_total_pot += open_water_evap_act
 
     # 7. Rootzone moisture and precipitation deficit
     soilm_root = soilm_pwp - smda_out
-    prec_def_knmi = (rain - etref) * -1
+    prec_def_knmi = (rain - etref) * -1.0
 
     return {
         "trans_act": act_trans_out,

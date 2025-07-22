@@ -151,6 +151,7 @@ class FluxParkRunner:
         tot_time = time.time()
         tot_time_rain_prep = 0.0
         tot_time_etref_prep = 0.0
+        tot_time_raster_prep = 0.0
         tot_time_evappar_prep = 0.0
         tot_time_mod_seen = 0.0
         tot_time_int_calc = 0.0
@@ -167,6 +168,7 @@ class FluxParkRunner:
         for i, date in enumerate(self.dates):
             logging.info(f"t = {date.date()}")
 
+            start_time_raster_prep = time.time()
             # read rasters if needed
             start_time_evappar_prep = time.time()
             is_new_year = date.day == 1 and date.month == 1
@@ -189,7 +191,9 @@ class FluxParkRunner:
             assert soilm_scp is not None, "soilm_scp must be defined"
             assert soilm_pwp is not None, "soilm_pwp must be defined"
             assert beta is not None, "beta must be defined"
+            tot_time_raster_prep += time.time() - start_time_raster_prep
 
+            start_time_evappar_prep = time.time()
             # evaporation parameters
             (trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact) = (
                 flp.prepgrids.apply_evaporation_parameters(
@@ -313,6 +317,7 @@ class FluxParkRunner:
         stages = [
             tot_time_rain_prep,
             tot_time_etref_prep,
+            tot_time_raster_prep,
             tot_time_evappar_prep,
             tot_time_mod_seen,
             tot_time_int_calc,
@@ -330,6 +335,10 @@ class FluxParkRunner:
         logging.info(
             f"preparing etref {tot_time_etref_prep:.2f} sec, "
             f"{tot_time_etref_prep/tot_time*100:.2f} %"
+        )
+        logging.info(
+            f"preparing input rasters {tot_time_raster_prep:.2f} sec, "
+            f"{tot_time_raster_prep/tot_time*100:.2f} %"
         )
         logging.info(
             f"preparing evaporation parameters {tot_time_evappar_prep:.2f} sec, "

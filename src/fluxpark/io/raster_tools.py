@@ -2,6 +2,7 @@ from pathlib import Path
 import numpy as np
 from osgeo import gdal, osr
 import warnings
+import re
 
 
 class GeoTiffReader:
@@ -187,14 +188,16 @@ class NetCDFReader:
             Reprojected raster data as NumPy array.
         """
         src_path_str = str(Path(self.source_path)).replace("\\", "/")
+        x_min, x_max, y_min, y_max = bounds
 
         # Open NetCDF and find subdatasets
         ds_nc = gdal.Open(src_path_str)
+
         subdatasets = ds_nc.GetSubDatasets()
         if not subdatasets:
             raise ValueError("No subdatasets found in NetCDF file.")
 
-        # Zoek subdataset met 'prediction' in de naam
+        # search subdataset with 'prediction' in name
         prediction_path = None
         for name, desc in subdatasets:
             if self.variable.lower() in name.lower():
@@ -202,9 +205,76 @@ class NetCDFReader:
                 break
 
         if not prediction_path:
-            raise ValueError("Geen 'prediction' subdataset gevonden.")
+            raise ValueError("No {self.variable} subdataset gevonden.")
 
-        ds_in = gdal.Open(prediction_path)
+        ds_nc = gdal.Open(prediction_path)
+
+        # fetch *all* metadata from the NetCDF driver
+        md = ds_nc.GetMetadata()
+
+        # find the one key that ends in “proj4_params” (case‑insensitive)
+        proj4 = None
+        for k, v in md.items():
+            if k.lower().endswith("proj4_params"):
+                proj4 = v
+                break
+        if proj4 is None:
+            raise RuntimeError("No proj4_params found in metadata!")
+
+        # clean it up:
+        # 1) strip whitespace/newlines
+        # 2) remove any surrounding quotes
+        # 3) drop stray '+<>'
+        proj4 = proj4.strip()
+        proj4 = re.sub(r'^"+|"+$', '', proj4)   # strip leading/trailing quotes
+        proj4 = re.sub(r'\+\<[^>]*\>', '', proj4).strip()
+
+        # Finally import into OGRSpatialReference
+        sr = osr.SpatialReference()
+        sr.ImportFromProj4(proj4)
+        wkt = sr.ExportToWkt()
+
+        # 2) Open x en y as rasters (1 pixel high, width = dim‑length)
+        ds_x = gdal.Open(f'NETCDF:"{src_path_str}":x', gdal.GA_ReadOnly)
+        ds_y = gdal.Open(f'NETCDF:"{src_path_str}":y', gdal.GA_ReadOnly)
+
+        w_x = ds_x.RasterXSize
+        w_y = ds_y.RasterXSize
+
+        # Read full row for both
+        x_vals = ds_x.GetRasterBand(1).ReadAsArray(0, 0, w_x, 1)[0]
+        y_vals = ds_y.GetRasterBand(1).ReadAsArray(0, 0, w_y, 1)[0]
+
+        # Build geotransform:
+        #    - originX = first x-value
+        #    - pixelX size = diff between x[1] and x[0]
+        #    - originY = last y-value (When y increases from South->North)
+        #    - pixelY size = negative (y[1] - y[0]) if y_vals increase
+        origin_x = float(x_vals[0])
+        pixel_x_sz = float(x_vals[1] - x_vals[0])
+        if y_vals[1] > y_vals[0]:
+            origin_y = float(y_vals[-1])
+            pixel_y_sz = -abs(float(y_vals[1] - y_vals[0]))
+        else:
+            origin_y = float(y_vals[0])
+            pixel_y_sz = float(y_vals[1] - y_vals[0])
+        geo_transform = (origin_x, pixel_x_sz, 0.0, origin_y, 0.0, pixel_y_sz)
+
+        # translate the nc file to be able to update geo_transform
+        ds_in = gdal.Translate(
+            '',
+            ds_nc,
+            format='MEM',
+            outputType=gdal.GDT_Float32,
+            # creationOptions=['SRC_METHOD=BACKMAP']
+        )
+        ds_in.SetGeoTransform(geo_transform)
+        ds_in.SetProjection(wkt)
+
+        ds_nc.GetGeoTransform()
+        ds_in.GetGeoTransform()
+        ds_nc.GetProjection()
+        ds_in.GetProjection()
 
         if fillnodata:
             if not tempfile_dir:
@@ -228,13 +298,12 @@ class NetCDFReader:
             ds_in = gdal.Open(temp_path, gdal.GA_ReadOnly)
 
         # Reproject and clip using GDAL Warp (to VRT)
-        x_min, x_max, y_min, y_max = bounds
         warp_opts = {
             "dstSRS": f"EPSG:{dst_epsg}",
             "resampleAlg": resample_alg,
             "xRes": cellsize,
             "yRes": -cellsize,
-            "format": "VRT",
+            "format": "MEM",
             "dstNodata": self.nodata_value,
             "targetAlignedPixels": True,
             "overviewLevel": 0,
@@ -248,9 +317,8 @@ class NetCDFReader:
         if cutline_path:
             warp_opts["cutlineDSName"] = cutline_path
 
+        # warp the raster to the correct coordinates and cellsize
         ds_warp = gdal.Warp("", ds_in, **warp_opts)
-        arr = ds_warp.ReadAsArray().astype(np.float32)
-        arr[np.isnan(arr)] = self.nodata_value
 
         if source_extra > 0:
             # Crop back to the bounding box if source_extra is used
@@ -262,14 +330,11 @@ class NetCDFReader:
                 format="VRT",
             )
 
-        # warp the original tiff to the correct coordinates and cellsize
-        ds_warp = gdal.Warp("", ds_in, **warp_opts)
-
         arr = ds_warp.ReadAsArray().astype(np.float32)
-        # arr[np.isnan(arr)] = self.nodata_value
         arr[arr == self.nodata_value] = np.nan
 
         # Clean up
+        ds_nc = None
         ds_in = None
         ds_warp = None
         if fillnodata and temp_path.exists():

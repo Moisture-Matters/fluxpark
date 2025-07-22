@@ -161,53 +161,125 @@ def apply_evaporation_parameters(
     soil_cov_conif : ndarray, optional
         Map with spatial vegetation cover for coniferous forests.
     """
-    # initiate array's
-    trans_fact = np.zeros(landuse_map.shape, dtype="float32")
-    soil_evap_fact = np.zeros(landuse_map.shape, dtype="float32")
-    int_cap = np.zeros(landuse_map.shape, dtype="float32")
-    soil_cov = np.zeros(landuse_map.shape, dtype="float32")
-    openwater_fact = np.zeros(landuse_map.shape, dtype="float32")
-    for luse_id in luse_ids:
-        evap_id = evap_ids[luse_ids == luse_id].item()
-        is_id_and_doy = (evap_params["evap_id"] == evap_id) & (
-            evap_params["doy"] == doy
-        )
+    # # initiate array's
+    # trans_fact = np.zeros(landuse_map.shape, dtype="float32")
+    # soil_evap_fact = np.zeros(landuse_map.shape, dtype="float32")
+    # int_cap = np.zeros(landuse_map.shape, dtype="float32")
+    # soil_cov = np.zeros(landuse_map.shape, dtype="float32")
+    # openwater_fact = np.zeros(landuse_map.shape, dtype="float32")
+    # for luse_id in luse_ids:
+    #     evap_id = evap_ids[luse_ids == luse_id].item()
+    #     is_id_and_doy = (evap_params["evap_id"] == evap_id) & (
+    #         evap_params["doy"] == doy
+    #     )
 
-        trans_fact[landuse_map == luse_id] = evap_params["trans_fact"][is_id_and_doy]
-        soil_evap_fact[landuse_map == luse_id] = evap_params["soil_evap_fact"][
-            is_id_and_doy
-        ]
-        int_cap[landuse_map == luse_id] = evap_params["int_cap"][is_id_and_doy]
-        soil_cov[landuse_map == luse_id] = evap_params["soil_cov"][is_id_and_doy]
-        openwater_fact[landuse_map == luse_id] = evap_params["openwater_fact"][
-            is_id_and_doy
-        ]
+    #     trans_fact[landuse_map == luse_id] = evap_params["trans_fact"][is_id_and_doy]
+    #     soil_evap_fact[landuse_map == luse_id] = evap_params["soil_evap_fact"][
+    #         is_id_and_doy
+    #     ]
+    #     int_cap[landuse_map == luse_id] = evap_params["int_cap"][is_id_and_doy]
+    #     soil_cov[landuse_map == luse_id] = evap_params["soil_cov"][is_id_and_doy]
+    #     openwater_fact[landuse_map == luse_id] = evap_params["openwater_fact"][
+    #         is_id_and_doy
+    #     ]
 
-        if luse_id == 18:
-            mask = landuse_map == luse_id
-            tf = trans_fact[mask] * (1 - imperv[mask])
-            trans_fact[mask] = tf
+    #     if luse_id == 18:
+    #         mask = landuse_map == luse_id
+    #         tf = trans_fact[mask] * (1 - imperv[mask])
+    #         trans_fact[mask] = tf
 
-            scf = soil_cov[mask]
-            sef = soil_evap_fact[mask]
-            correction = imperv[mask] * (1 / (1 - scf) - sef)
-            soil_evap_fact[mask] = sef + correction
+    #         scf = soil_cov[mask]
+    #         sef = soil_evap_fact[mask]
+    #         correction = imperv[mask] * (1 / (1 - scf) - sef)
+    #         soil_evap_fact[mask] = sef + correction
 
-            ic = int_cap[mask] * (1 - imperv[mask])
-            ic[ic < 0.2] = 0.2
-            int_cap[mask] = ic
+    #         ic = int_cap[mask] * (1 - imperv[mask])
+    #         ic[ic < 0.2] = 0.2
+    #         int_cap[mask] = ic
 
-        if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
-            if luse_id in [11, 12, 19]:
-                if luse_id == 11:
-                    cover_map = soil_cov_decid
-                else:
-                    cover_map = soil_cov_conif
+    #     if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
+    #         if luse_id in [11, 12, 19]:
+    #             if luse_id == 11:
+    #                 cover_map = soil_cov_decid
+    #             else:
+    #                 cover_map = soil_cov_conif
 
-                mask = (landuse_map == luse_id) & (~np.isnan(cover_map))
-                max_table_cov = np.max(
-                    evap_params["soil_cov"][evap_params["evap_id"] == evap_id]
-                )
-                conv_fac = cover_map[mask] / max_table_cov
-                soil_cov[mask] = evap_params["soil_cov"][is_id_and_doy] * conv_fac
+    #             mask = (landuse_map == luse_id) & (~np.isnan(cover_map))
+    #             max_table_cov = np.max(
+    #                 evap_params["soil_cov"][evap_params["evap_id"] == evap_id]
+    #             )
+    #             conv_fac = cover_map[mask] / max_table_cov
+    #             soil_cov[mask] = evap_params["soil_cov"][is_id_and_doy] * conv_fac
+    # return trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact
+
+    # 0) allocate outputs
+    shape = landuse_map.shape
+    trans_fact = np.zeros(shape, dtype="float32")
+    soil_evap_fact = np.zeros(shape, dtype="float32")
+    int_cap = np.zeros(shape, dtype="float32")
+    soil_cov = np.zeros(shape, dtype="float32")
+    openwater_fact = np.zeros(shape, dtype="float32")
+
+    # 1) pull out only the rows for this doy
+    mask_doy = evap_params["doy"] == doy
+    ep = {k: v[mask_doy] for k, v in evap_params.items()}
+
+    # 2) build direct lookup tables indexed by evap_id
+    max_id = int(landuse_map.max()) + 1
+    tf_map = np.zeros(max_id, dtype="float32")
+    se_map = np.zeros(max_id, dtype="float32")
+    ic_map = np.zeros(max_id, dtype="float32")
+    sc_map = np.zeros(max_id, dtype="float32")
+    ow_map = np.zeros(max_id, dtype="float32")
+
+    # fill those tables in one go
+    for lid, eid in zip(luse_ids, evap_ids):
+        # find the row index in ep where evap_id==eid
+        i = np.nonzero(ep["evap_id"] == eid)[0][0]
+        tf_map[lid] = ep["trans_fact"][i]
+        se_map[lid] = ep["soil_evap_fact"][i]
+        ic_map[lid] = ep["int_cap"][i]
+        sc_map[lid] = ep["soil_cov"][i]
+        ow_map[lid] = ep["openwater_fact"][i]
+
+    # cast to integer indices
+    luse_idx = landuse_map.astype(np.int32)
+
+    # 3) vectorized assignment
+    trans_fact = tf_map[luse_idx]
+    soil_evap_fact = se_map[luse_idx]
+    int_cap = ic_map[luse_idx]
+    soil_cov = sc_map[luse_idx]
+    openwater_fact = ow_map[luse_idx]
+
+    # 4) special impervious correction for landuse 18
+    mask18 = luse_idx == 18
+    if mask18.any():
+        tf = trans_fact[mask18] * (1 - imperv[mask18])
+        trans_fact[mask18] = tf
+
+        sef = soil_evap_fact[mask18]
+        scf = soil_cov[mask18]
+        corr = imperv[mask18] * (1 / (1 - scf) - sef)
+        soil_evap_fact[mask18] = sef + corr
+
+        ic = int_cap[mask18] * (1 - imperv[mask18])
+        ic[ic < 0.2] = 0.2
+        int_cap[mask18] = ic
+
+    # 5) optional vegetation cover mod
+    if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
+        for lid in (11, 12, 19):
+            mask = (luse_idx == lid) & ~np.isnan(
+                (soil_cov_decid if lid == 11 else soil_cov_conif)
+            )
+            if not mask.any():
+                continue
+            # get the evap_id and corresponding base soil_cov
+            eid = evap_ids[luse_ids == lid].item()
+            base_sc = ep["soil_cov"][ep["evap_id"] == eid][0]  # the table cover (ave)
+            cover_map = soil_cov_decid if lid == 11 else soil_cov_conif
+            conv_fac = cover_map[mask] / base_sc  # conversion factor
+            soil_cov[mask] = base_sc * conv_fac   # convert the table to scalled
+
     return trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact

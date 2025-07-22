@@ -55,43 +55,31 @@ def soilevap_boestenstroosnijder(throughfall, epot, beta_m, sum_ep_old,
 
     # Initialize arrays
     ea = np.zeros_like(tf, dtype="float32")
-    sum_ep = sum_ep_old.copy()
-    sum_ea = sum_ea_old.copy()
 
     # Determine condition for reset
-    reset = (tf - ep) > sum_ep_old
-    sum_ep[reset] = 0.0
-    sum_ea[reset] = 0.0
+    reset_mask = (tf - ep) > sum_ep_old
+    sum_ep = np.where(reset_mask, 0.0, sum_ep_old)
+    sum_ea = np.where(reset_mask, 0.0, sum_ea_old)
 
     # Condition 1: no excess rain
     cond1 = tf < ep
-    delta = ep - tf
-    sum_ep[cond1] += delta[cond1]
-    evap_limit = beta_mm05 * np.sqrt(sum_ep)
-    over_limit = cond1 & (sum_ep > evap_limit)
-    sum_ea[cond1] = sum_ep[cond1]
-    sum_ea[over_limit] = evap_limit[over_limit]
-    ea[cond1] = tf[cond1] + sum_ea[cond1] - sum_ea_old[cond1]
-    ea[ea < 0.0] = 0.0
+    sum_ep = np.where(cond1, sum_ep + (ep - tf), sum_ep)
+    evap_limit = beta_mm05 * np.sqrt(sum_ep, dtype="float32")
+    sum_ea = np.where(cond1, np.minimum(sum_ep, evap_limit), sum_ea)
 
-    # Update cumulative values for cond1
-    sum_ep_old[cond1] = sum_ep[cond1]
-    sum_ea_old[cond1] = sum_ea[cond1]
+    ea1 = tf + (sum_ea - sum_ea_old)
+    ea = np.where(cond1, np.clip(ea1, 0.0, None), ep)
 
     # Condition 2: excess rain
-    cond2 = ~cond1
-    ea[cond2] = ep[cond2]
-    sum_ea[cond2] = sum_ea_old[cond2] - (tf[cond2] - ea[cond2])
-    sum_ea[cond2] = np.maximum(sum_ea[cond2], 0.0)
-    sum_ep_calc = (sum_ea[cond2] ** 2) / (beta_mm05[cond2] ** 2)
-    sum_ep[cond2] = np.maximum(sum_ep_calc, sum_ea[cond2])
+    # For cond2, update sum_ea = max(old_sum_ea - (tf-ep),0)
+    sum_ea2 = np.maximum(sum_ea_old - (tf - ep), 0.0)
+    sum_ea = np.where(~cond1, sum_ea2, sum_ea)
 
-    # Update cumulative values for cond2
-    sum_ep_old[cond2] = sum_ep[cond2]
-    sum_ea_old[cond2] = sum_ea[cond2]
+    # For cond2, update sum_ep = max(sum_ea^2/(beta_mm05^2), sum_ea)
+    sum_ep2 = np.maximum(sum_ea * sum_ea / (beta_mm05 * beta_mm05), sum_ea)
+    sum_ep = np.where(~cond1, sum_ep2, sum_ep)
 
-    # Return same shape as input
-    if throughfall.ndim == 1:
+    # Return
+    if np.ndim(throughfall) == 1:
         return ea.flatten(), sum_ep.flatten(), sum_ea.flatten()
-    else:
-        return ea, sum_ep, sum_ea
+    return ea, sum_ep, sum_ea
