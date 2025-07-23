@@ -132,7 +132,7 @@ class FluxParkRunner:
         )
 
         # read static input rasters
-        (self.imperv, self.soil_cov_conif, self.soil_cov_decid) = (
+        (self.imperv, self.soil_cov_decid, self.soil_cov_conif) = (
             flp.setup.read_static_maps(
                 self.indir_rasters,
                 self.grid_params,
@@ -185,6 +185,8 @@ class FluxParkRunner:
                         input_raster_years=self.input_raster_years,
                         imperv=self.imperv,
                         luse_ids=self.luse_ids,
+                        bare_soil_ids=cfg.bare_soil_ids,
+                        urban_ids=cfg.urban_ids,
                     )
                 )
             assert landuse_map is not None, "landuse_map must be defined"
@@ -203,6 +205,7 @@ class FluxParkRunner:
                     date.dayofyear,
                     landuse_map,
                     self.imperv,
+                    cfg.urban_ids,
                     mod_vegcover=cfg.mod_vegcover,
                     soil_cov_decid=self.soil_cov_decid,
                     soil_cov_conif=self.soil_cov_conif,
@@ -214,12 +217,12 @@ class FluxParkRunner:
             start_time_rain_prep = time.time()
             get_rain = self.input_hooks.get("get_rain", self.default_rain_input)
             rain = get_rain(date, self.grid_params)
-            tot_time_rain_prep += (time.time() - start_time_rain_prep)
+            tot_time_rain_prep += time.time() - start_time_rain_prep
 
             start_time_etref_prep = time.time()
             get_etref = self.input_hooks.get("get_etref", self.default_etref_input)
             etref = get_etref(date, self.grid_params)
-            tot_time_etref_prep += (time.time() - start_time_etref_prep)
+            tot_time_etref_prep += time.time() - start_time_etref_prep
 
             # interception
             start_time_int_calc = time.time()
@@ -238,6 +241,7 @@ class FluxParkRunner:
 
             # transpiration
             start_time_trans_calc = time.time()
+
             trans_pot = etref * trans_fact * soil_cov * (1.0 - int_timefrac)
             old["smda"][old["smda"] > soilm_pwp] = soilm_pwp[old["smda"] > soilm_pwp]
             eta, smdp, smda, prec_surplus = unsat_reservoirmodel(
@@ -265,6 +269,7 @@ class FluxParkRunner:
                 etref,
                 landuse_map,
                 prec_surplus,
+                cfg.open_water_ids,
             )
             daily_output.update(
                 {
@@ -301,6 +306,8 @@ class FluxParkRunner:
                 daily_output,
                 cum_output,
                 landuse_map,
+                cfg.write_nan_for_landuse_ids,
+                cfg.replace_nan_with_zero,
                 self.outdir,
                 cfg.x_min,
                 cfg.y_max,

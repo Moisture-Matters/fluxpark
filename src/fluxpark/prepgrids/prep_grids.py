@@ -31,6 +31,8 @@ def load_fluxpark_raster_inputs(
     input_raster_years,
     imperv,
     luse_ids,
+    bare_soil_ids,
+    urban_ids,
 ):
     """
     Load basic raster input files for a given date for the FluxPark model.
@@ -57,6 +59,10 @@ def load_fluxpark_raster_inputs(
         Map with impervious fractions (used for beta).
     luse_ids : list of int
         List of valid land use IDs.
+    bare_soil_ids : list of int
+        List of land use IDs that are bare and should get a lower beta param.
+    urban_ids : list of int
+        List of land use IDs that are urban and should be scaled using the imperv.
 
     Returns
     -------
@@ -91,15 +97,21 @@ def load_fluxpark_raster_inputs(
     reader = flp.io.GeoTiffReader(indir_rasters / soilm_pwp_file, nodata_value=-9999)
     soilm_pwp = reader.read_and_reproject(**grid_params).astype(np.float32)
 
-    # Mask open water and sea
-    mask = (landuse_map == 16) | (landuse_map == 17)
-    soilm_scp[mask] = float("nan")
-    soilm_pwp[mask] = float("nan")
+    # # Mask open water and sea
+    # mask = (landuse_map == 16) | (landuse_map == 17)
+    # soilm_scp[mask] = float("nan")
+    # soilm_pwp[mask] = float("nan")
 
     # Compute beta parameter map for soil evaporation
     beta = np.full(np.shape(landuse_map), 0.038, dtype=np.float32)
-    beta[landuse_map == 15] = 0.02
-    beta[landuse_map == 18] = (0.038 - 0.02) * (1 - imperv[landuse_map == 18]) + 0.02
+
+    # specify a lower beta param for bare soil
+    bare_mask = np.isin(landuse_map, bare_soil_ids)
+    beta[bare_mask] = 0.02
+
+    # scale for the urban area.
+    urban_mask = np.isin(landuse_map, urban_ids)
+    beta[urban_mask] = (0.038 - 0.02) * (1 - imperv[urban_mask]) + 0.02
 
     # Warn for unexpected land use codes
     for code in np.unique(landuse_map):
@@ -118,6 +130,7 @@ def apply_evaporation_parameters(
     doy: int,
     landuse_map: NDArray[np.integer],
     imperv: NDArray[np.floating],
+    urban_ids: list[int],
     *,
     mod_vegcover: bool = False,
     soil_cov_decid: Optional[NDArray[np.floating]] = None,
@@ -161,57 +174,6 @@ def apply_evaporation_parameters(
     soil_cov_conif : ndarray, optional
         Map with spatial vegetation cover for coniferous forests.
     """
-    # # initiate array's
-    # trans_fact = np.zeros(landuse_map.shape, dtype="float32")
-    # soil_evap_fact = np.zeros(landuse_map.shape, dtype="float32")
-    # int_cap = np.zeros(landuse_map.shape, dtype="float32")
-    # soil_cov = np.zeros(landuse_map.shape, dtype="float32")
-    # openwater_fact = np.zeros(landuse_map.shape, dtype="float32")
-    # for luse_id in luse_ids:
-    #     evap_id = evap_ids[luse_ids == luse_id].item()
-    #     is_id_and_doy = (evap_params["evap_id"] == evap_id) & (
-    #         evap_params["doy"] == doy
-    #     )
-
-    #     trans_fact[landuse_map == luse_id] = evap_params["trans_fact"][is_id_and_doy]
-    #     soil_evap_fact[landuse_map == luse_id] = evap_params["soil_evap_fact"][
-    #         is_id_and_doy
-    #     ]
-    #     int_cap[landuse_map == luse_id] = evap_params["int_cap"][is_id_and_doy]
-    #     soil_cov[landuse_map == luse_id] = evap_params["soil_cov"][is_id_and_doy]
-    #     openwater_fact[landuse_map == luse_id] = evap_params["openwater_fact"][
-    #         is_id_and_doy
-    #     ]
-
-    #     if luse_id == 18:
-    #         mask = landuse_map == luse_id
-    #         tf = trans_fact[mask] * (1 - imperv[mask])
-    #         trans_fact[mask] = tf
-
-    #         scf = soil_cov[mask]
-    #         sef = soil_evap_fact[mask]
-    #         correction = imperv[mask] * (1 / (1 - scf) - sef)
-    #         soil_evap_fact[mask] = sef + correction
-
-    #         ic = int_cap[mask] * (1 - imperv[mask])
-    #         ic[ic < 0.2] = 0.2
-    #         int_cap[mask] = ic
-
-    #     if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
-    #         if luse_id in [11, 12, 19]:
-    #             if luse_id == 11:
-    #                 cover_map = soil_cov_decid
-    #             else:
-    #                 cover_map = soil_cov_conif
-
-    #             mask = (landuse_map == luse_id) & (~np.isnan(cover_map))
-    #             max_table_cov = np.max(
-    #                 evap_params["soil_cov"][evap_params["evap_id"] == evap_id]
-    #             )
-    #             conv_fac = cover_map[mask] / max_table_cov
-    #             soil_cov[mask] = evap_params["soil_cov"][is_id_and_doy] * conv_fac
-    # return trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact
-
     # 0) allocate outputs
     shape = landuse_map.shape
     trans_fact = np.zeros(shape, dtype="float32")
@@ -253,33 +215,32 @@ def apply_evaporation_parameters(
     openwater_fact = ow_map[luse_idx]
 
     # 4) special impervious correction for landuse 18
-    mask18 = luse_idx == 18
-    if mask18.any():
-        tf = trans_fact[mask18] * (1 - imperv[mask18])
-        trans_fact[mask18] = tf
+    urban_mask = np.isin(luse_idx, urban_ids)
+    if urban_mask.any():
+        tf = trans_fact[urban_mask] * (1 - imperv[urban_mask])
+        trans_fact[urban_mask] = tf
 
-        sef = soil_evap_fact[mask18]
-        scf = soil_cov[mask18]
-        corr = imperv[mask18] * (1 / (1 - scf) - sef)
-        soil_evap_fact[mask18] = sef + corr
+        sef = soil_evap_fact[urban_mask]
+        scf = soil_cov[urban_mask]
+        corr = imperv[urban_mask] * (1 / (1 - scf) - sef)
+        soil_evap_fact[urban_mask] = sef + corr
 
-        ic = int_cap[mask18] * (1 - imperv[mask18])
+        ic = int_cap[urban_mask] * (1 - imperv[urban_mask])
         ic[ic < 0.2] = 0.2
-        int_cap[mask18] = ic
+        int_cap[urban_mask] = ic
 
-    # 5) optional vegetation cover mod
     if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
-        for lid in (11, 12, 19):
-            mask = (luse_idx == lid) & ~np.isnan(
-                (soil_cov_decid if lid == 11 else soil_cov_conif)
+        for luse_id in (11, 12, 19):
+            if luse_id == 11:
+                cover_map = soil_cov_decid
+            else:
+                cover_map = soil_cov_conif
+
+            mask = (landuse_map == luse_id) & (~np.isnan(cover_map))
+            max_table_cov = np.max(
+                evap_params["soil_cov"][evap_params["evap_id"] == luse_id]
             )
-            if not mask.any():
-                continue
-            # get the evap_id and corresponding base soil_cov
-            eid = evap_ids[luse_ids == lid].item()
-            base_sc = ep["soil_cov"][ep["evap_id"] == eid][0]  # the table cover (ave)
-            cover_map = soil_cov_decid if lid == 11 else soil_cov_conif
-            conv_fac = cover_map[mask] / base_sc  # conversion factor
-            soil_cov[mask] = base_sc * conv_fac   # convert the table to scalled
+            conv_fac = cover_map[mask] / max_table_cov
+            soil_cov[mask] = soil_cov[mask] * conv_fac
 
     return trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact

@@ -10,6 +10,8 @@ def write_output_tif(
     variable,
     filename,
     landuse_map,
+    write_nan_for_landuse_ids,
+    replace_nan_with_zero,
     outdir,
     x_min,
     y_max,
@@ -28,6 +30,10 @@ def write_output_tif(
         Output filename (e.g. '20250601-rain.tif').
     landuse_map : np.ndarray
         2D landuse class map for masking sea/zero.
+    write_nan_for_landuse_ids : list of int
+        the landuse ids will get nan. e.g. sea or the no data value in landuse map
+    replace_nan_with_zero : bool
+        if true all nan get zero
     outdir : str or Path
         Directory to write output file.
     x_min : float
@@ -45,9 +51,13 @@ def write_output_tif(
     if "soil_cov" in filename:
         variable = variable * 100.0
 
-    # mask sea and zero landuse
-    mask = (landuse_map == 17) | (landuse_map == 0)
-    variable[mask] = np.nan
+    # mask nan (e.g. for sea or you no data value)
+    if write_nan_for_landuse_ids:
+        mask = np.isin(landuse_map, write_nan_for_landuse_ids)
+        variable[mask] = np.nan
+    # replace nan with zero.
+    if replace_nan_with_zero:
+        variable = np.where(np.isnan(variable), 0, variable)
 
     # replace NaNs with nodata flag
     variable = np.where(np.isnan(variable), -9999, variable)
@@ -75,6 +85,8 @@ def write_all_tiffs(
     daily_output,
     cum_output,
     landuse_map,
+    write_nan_for_landuse_ids,
+    replace_nan_with_zero,
     outdir,
     x_min,
     y_max,
@@ -101,6 +113,10 @@ def write_all_tiffs(
         Cumulative variable values.
     landuse_map : np.ndarray
         Land use mask array.
+    write_nan_for_landuse_ids : list of int
+        the landuse ids will get nan. e.g. sea or the no data value in landuse map
+    replace_nan_with_zero : bool
+        if true all nan get zero
     outdir : str or Path
         Directory for output files.
     x_min, y_max : float
@@ -141,6 +157,8 @@ def write_all_tiffs(
             arr,
             fname,
             landuse_map,
+            write_nan_for_landuse_ids,
+            replace_nan_with_zero,
             outdir,
             x_min,
             y_max,

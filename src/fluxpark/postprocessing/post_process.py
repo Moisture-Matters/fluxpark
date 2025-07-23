@@ -16,6 +16,7 @@ def post_process_daily(
     etref,
     landuse_map,
     prec_surplus,
+    open_water_ids,
 ):
     """
     Compute actual fluxes, mask invalid areas, and derive water balances.
@@ -46,6 +47,8 @@ def post_process_daily(
         Land‐use codes.
     prec_surplus : ndarray
         Precipitation surplus (mm).
+    open_water_ids : list[int]
+        Reservoir output get nan for these landuse ids, if None no masking
 
     Returns
     -------
@@ -66,82 +69,66 @@ def post_process_daily(
         - prec_surplus: masked precipitation surplus
         - smda: non‐negative soil moisture deficit
     """
-    # 1. Compute transpiration fraction and actual transpiration
+    # 1. Compute transpiration fraction, trans_act and soil_evap_act
     num = trans_pot + soil_evap_act_est
     frac = np.zeros_like(trans_pot, dtype="float32")
-    np.divide(trans_pot,
-              num,
-              out=frac,
-              where=(num != 0))
+    np.divide(trans_pot, num, out=frac, where=(num != 0))
     trans_act = eta * frac
-
-    # 2. Actual soil evaporation and transpiration deficit
     soil_evap_act = eta - trans_act
+
+    # 3. Masks for open water
+    if open_water_ids:
+        mask_open = np.isin(landuse_map, open_water_ids)
+
+        # 4. all output from the reservoir model is masked for open water and sea.
+        # if you don't mask the prec_surplus will be equal with precipitation for open
+        # water and other variables will have a 0 (not nan)
+        for arr in (
+            eta,
+            int_evap,
+            trans_pot,
+            trans_act,
+            soil_evap_pot,
+            soil_evap_act_est,
+            soil_evap_act,
+            prec_surplus,
+            smda,
+        ):
+            arr[mask_open] = np.nan
+
+    # calculate transpiration deficit
     trans_def = trans_pot - trans_act
 
-    # 3. Masks for open water / greenhouse and cities
-    mask_open = (landuse_map == 16)  # | (landuse_map == 8)
-    # mask_city = landuse_map == 18
-
-    # 4. Copy and mask arrays
-    eta_out = eta.copy()
-    int_out = int_evap.copy()
-    pot_soil_out = soil_evap_pot.copy()
-    est_soil_out = soil_evap_act_est.copy()
-    pot_trans_out = trans_pot.copy()
-    act_trans_out = trans_act.copy()
-    def_trans_out = trans_def.copy()
-    prec_sur_out = prec_surplus.copy()
-    smda_out = smda.copy()
-
-    for arr in (
-        eta_out,
-        int_out,
-        pot_soil_out,
-        soil_evap_act,
-        est_soil_out,
-        pot_trans_out,
-        act_trans_out,
-        prec_sur_out,
-    ):
-        arr[mask_open] = np.nan
-
-    # comment out.
-    # def_trans_out[mask_city] = np.nan
-
     # 5. non-negative soil moisture deficit
-    smda_out = np.where((smda < 0) & (smda != -9999), 0.0, smda)
+    smda = np.where((smda < 0) & (smda != -9999), 0.0, smda)
 
-    # 6. Total evaporation (nan‐safe sum over axis=2)
-    evap_total_act = soil_evap_act.copy()
-    evap_total_act += trans_act
-    evap_total_act += int_evap
-    evap_total_act += open_water_evap_act
-
-    evap_total_pot = soil_evap_act_est.copy()
-    evap_total_pot += trans_pot
-    evap_total_pot += int_evap
-    evap_total_pot += open_water_evap_act
+    # 6. Total evaporation
+    evap_total_pot = np.nansum(
+        [soil_evap_act_est, trans_pot, int_evap, open_water_evap_act], axis=0
+    )
+    evap_total_act = np.nansum(
+        [soil_evap_act, trans_act, int_evap, open_water_evap_act], axis=0
+    )
 
     # 7. Rootzone moisture and precipitation deficit
-    soilm_root = soilm_pwp - smda_out
+    soilm_root = soilm_pwp - smda
     prec_def_knmi = (rain - etref) * -1.0
 
     return {
-        "trans_act": act_trans_out,
+        "eta": eta,
+        "int_evap": int_evap,
+        "trans_pot": trans_pot,
+        "trans_act": trans_act,
+        "soil_evap_pot": soil_evap_pot,
+        "soil_evap_act_est": soil_evap_act_est,
         "soil_evap_act": soil_evap_act,
-        "trans_def": def_trans_out,
+        "prec_surplus": prec_surplus,
+        "smda": smda,
+        "trans_def": trans_def,
         "evap_total_act": evap_total_act,
         "evap_total_pot": evap_total_pot,
         "soilm_root": soilm_root,
         "prec_def_knmi": prec_def_knmi,
-        "eta": eta_out,
-        "int_evap": int_out,
-        "soil_evap_pot": pot_soil_out,
-        "soil_evap_act_est": est_soil_out,
-        "trans_pot": pot_trans_out,
-        "prec_surplus": prec_sur_out,
-        "smda": smda_out,
     }
 
 
