@@ -45,11 +45,12 @@ class FluxParkConfig:
      indir_masks : Optional[Union[str, Path]], default=None
          Directory containing mask rasters. If None, defaults to `indir/masks`.
      landuse_rastername : str, default="{year}_luse_ids.tif"
-         Filename of the landuse raster (.tif) or the filename pattern of landuse
-         rasters if landuse is allowed to change during the calculation on the first of
-         January. In the latter case you should use placeholders: "{year}" in the
-         filename. FluxPark will use the most recent year in the raster directory if
-         years are missing.
+         Filename of the land-use raster (.tif). If land use changes over time, provide
+         a filename pattern with placeholder "{year}" (e.g. "landuse_{year}.tif"). If a
+         year is missing, FluxPark uses the most recent previous map until a newer one
+         is found in 'indir'. It will search for a new map every 1st of january. At the
+         first timestep, the earliest available map not exceeding the simulation start
+         year is used.
      root_soilm_scp_rastername : str, default="{year}_root_soilm_fc_scp_mm.tif"
          Filename or filename pattern for the root zone soil moisture content (mm)
          between field capacity and the stomatal closure point (scp). If landuse changes
