@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Optional
 import logging
-
+import bisect
 
 _EXT2DRIVER = {
     ".gpkg": "GPKG",
@@ -78,8 +78,17 @@ def load_fluxpark_raster_inputs(
     """
     if dynamic_landuse:
         year = date.year
-        if str(year) not in input_raster_years:
-            year = input_raster_years[-1]
+        raster_years = [int(y) for y in input_raster_years]
+
+        # bisect_right gives the index above, therefore -1.
+        idx = bisect.bisect_right(raster_years, year) - 1
+        if idx < 0:
+            year = raster_years[0]
+            logging.info(f"Dyn. luse, year is earlier than the inputfiles. Use: {year}")
+        else:
+            year = raster_years[idx]
+            logging.info(f"Dynamic land use, select file with year: {year}")
+
         landuse_file = landuse_filename.format(year=year)
         soilm_scp_file = root_soilm_scp_filename.format(year=year)
         soilm_pwp_file = root_soilm_pwp_filename.format(year=year)
