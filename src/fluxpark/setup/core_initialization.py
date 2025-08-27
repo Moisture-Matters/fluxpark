@@ -286,20 +286,48 @@ def compute_grid_params(
           "nrows": int
         }
     """
-    # 1) Align bounds on rastergrid (we use target aligned pixels)
-    x_min_aligned = math.floor(x_min / cellsize) * cellsize
-    x_max_aligned = math.ceil(x_max / cellsize) * cellsize
-    y_min_aligned = math.floor(y_min / cellsize) * cellsize
-    y_max_aligned = math.ceil(y_max / cellsize) * cellsize
+    # # 1) Align bounds on rastergrid (we use target aligned pixels)
+    # x_min_aligned = math.floor(x_min / cellsize) * cellsize
+    # x_max_aligned = math.ceil(x_max / cellsize) * cellsize
+    # y_min_aligned = math.floor(y_min / cellsize) * cellsize
+    # y_max_aligned = math.ceil(y_max / cellsize) * cellsize
 
-    ncols = int((x_max_aligned - x_min_aligned) / cellsize)
-    nrows = int((y_max_aligned - y_min_aligned) / cellsize)
+    # ncols = int((x_max_aligned - x_min_aligned) / cellsize)
+    # nrows = int((y_max_aligned - y_min_aligned) / cellsize)
+
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+    tol = 1e-9  # tolerance for floating point rounding errors
+
+    # Ensure xmin is aligned with the grid
+    assert math.isclose(
+        x_min % cellsize, 0, abs_tol=tol
+    ), f"x_min={x_min} is not aligned with cellsize={cellsize}"
+
+    # Ensure ymin is aligned with the grid
+    assert math.isclose(
+        y_min % cellsize, 0, abs_tol=tol
+    ), f"y_min={y_min} is not aligned with cellsize={cellsize}"
+
+    # Ensure the x-range is divisible by the cellsize
+    assert math.isclose(
+        x_range % cellsize, 0, abs_tol=tol
+    ), f"x_range={x_range} is not divisible by cellsize={cellsize}"
+
+    # Ensure the y-range is divisible by the cellsize
+    assert math.isclose(
+        y_range % cellsize, 0, abs_tol=tol
+    ), f"y_range={y_range} is not divisible by cellsize={cellsize}"
+
+    # Compute number of columns and rows
+    ncols = int(round(x_range / cellsize))
+    nrows = int(round(y_range / cellsize))
 
     cutline = Path(indir_masks) / mask if mask else None
 
     return {
         "dst_epsg": epsg_code,
-        "bounds": (x_min_aligned, x_max_aligned, y_min_aligned, y_max_aligned),
+        "bounds": (x_min, x_max, y_min, y_max),
         "cellsize": cellsize,
         "cutline_path": cutline,
         "ncols": ncols,
