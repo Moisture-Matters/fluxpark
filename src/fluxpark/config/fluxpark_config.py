@@ -59,7 +59,7 @@ class FluxParkConfig:
          Filename or filename pattern for the root zone soil moisture content (mm)
          between field capacity and the permanent wilting point (pwp). If landuse
          changes yearly this file should also be available yearly.
-     impervdens_rastername : str, default="2018_impervdens.tif"
+     impervdens_rastername : str, default="{year}_impervdens.tif"
          Filename of the imperviousness raster.
      soil_cov_decid_rastername : str, default="forest_decid_soilcov_100m_3035.tif"
          Filename of the deciduous forest cover raster.
@@ -125,14 +125,14 @@ class FluxParkConfig:
     landuse_rastername: str = "{year}_luse_ids.tif"
     root_soilm_scp_rastername: str = "{year}_root_soilm_fc_scp_mm.tif"
     root_soilm_pwp_rastername: str = "{year}_root_soilm_fc_pwp_mm.tif"
-    impervdens_rastername: str = "2018_impervdens.tif"
-    soil_cov_decid_rastername: str = "forest_decid_soilcov_100m_3035.tif"
-    soil_cov_conif_rastername: str = "forest_conif_soilcov_100m_3035.tif"
+    impervdens_rastername: str = "{year}_impervdens.tif"
+    soil_cov_decid_rastername: str = "forest_decid_soilcov_pct.tif"
+    soil_cov_conif_rastername: str = "forest_conif_soilcov_pct.tif"
     output_mapping: str = "fluxpark_output_mapping.csv"
 
     bare_soil_ids: list[int] = field(default_factory=lambda: [15])
     open_water_ids: list[int] = field(default_factory=lambda: [16])
-    urban_ids: list[int] = field(default_factory=lambda: [18])
+    urban_ids: list[int] = field(default_factory=lambda: [18, 21])
     write_nan_for_landuse_ids: list[int] = field(default_factory=lambda: [0, 17])
     replace_nan_with_zero: bool = False
 

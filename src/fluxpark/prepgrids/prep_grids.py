@@ -28,8 +28,8 @@ def load_fluxpark_raster_inputs(
     landuse_filename,
     root_soilm_scp_filename,
     root_soilm_pwp_filename,
+    impervdens_filename,
     input_raster_years,
-    imperv,
     luse_ids,
     bare_soil_ids,
     urban_ids,
@@ -53,10 +53,11 @@ def load_fluxpark_raster_inputs(
         Template filename for soil moisture at SCP with {year} placeholder.
     root_soilm_pwp_filename : str
         Template filename for soil moisture at PWP with {year} placeholder.
+    impervdens_filename : str
+        Template filename for impervious fractions with {year} placeholder,
+        (also used for beta).
     input_raster_years : list of str
         List of years with available input maps.
-    imperv : ndarray
-        Map with impervious fractions (used for beta).
     luse_ids : list of int
         List of valid land use IDs.
     bare_soil_ids : list of int
@@ -92,19 +93,33 @@ def load_fluxpark_raster_inputs(
         landuse_file = landuse_filename.format(year=year)
         soilm_scp_file = root_soilm_scp_filename.format(year=year)
         soilm_pwp_file = root_soilm_pwp_filename.format(year=year)
+        imperv_file = impervdens_filename.format(year=year)
     else:
         landuse_file = landuse_filename
         soilm_scp_file = root_soilm_scp_filename
         soilm_pwp_file = root_soilm_pwp_filename
+        imperv_file = impervdens_filename
 
     reader = flp.io.GeoTiffReader(indir_rasters / landuse_file, nodata_value=0)
     landuse_map = reader.read_and_reproject(**grid_params)
-
+    
+    if "x10" in soilm_scp_file.lower():
+        conv = 0.1
+    else:
+        conv = 1.0
     reader = flp.io.GeoTiffReader(indir_rasters / soilm_scp_file, nodata_value=-9999)
-    soilm_scp = reader.read_and_reproject(**grid_params).astype(np.float32)
+    soilm_scp = reader.read_and_reproject(**grid_params).astype(np.float32) * conv
 
+    if "x10" in soilm_pwp_file.lower():
+        conv = 0.1
+    else:
+        conv = 1.0
     reader = flp.io.GeoTiffReader(indir_rasters / soilm_pwp_file, nodata_value=-9999)
-    soilm_pwp = reader.read_and_reproject(**grid_params).astype(np.float32)
+    soilm_pwp = reader.read_and_reproject(**grid_params).astype(np.float32) * conv
+    
+    # 0 should be treated as 0, not as no data. Therefore dummy nodata_value 255.
+    reader = flp.io.GeoTiffReader(indir_rasters / imperv_file, nodata_value=255)
+    imperv = reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
 
     # # Mask open water and sea
     # mask = (landuse_map == 16) | (landuse_map == 17)
@@ -129,7 +144,7 @@ def load_fluxpark_raster_inputs(
 
     logging.info("Read basic FluxPark input maps")
 
-    return landuse_map, soilm_scp, soilm_pwp, beta
+    return landuse_map, soilm_scp, soilm_pwp, imperv, beta
 
 
 def apply_evaporation_parameters(
@@ -223,7 +238,7 @@ def apply_evaporation_parameters(
     soil_cov = sc_map[luse_idx]
     openwater_fact = ow_map[luse_idx]
 
-    # 4) special impervious correction for landuse 18
+    # 4) special impervious correction for cfg.urban_ids
     urban_mask = np.isin(luse_idx, urban_ids)
     if urban_mask.any():
         tf = trans_fact[urban_mask] * (1 - imperv[urban_mask])

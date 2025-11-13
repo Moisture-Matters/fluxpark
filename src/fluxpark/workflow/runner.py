@@ -132,12 +132,11 @@ class FluxParkRunner:
         )
 
         # read static input rasters
-        (self.imperv, self.soil_cov_decid, self.soil_cov_conif) = (
+        (self.soil_cov_decid, self.soil_cov_conif) = (
             flp.setup.read_static_maps(
                 self.indir_rasters,
                 self.grid_params,
                 self.mods,
-                cfg.impervdens_rastername,
                 cfg.soil_cov_decid_rastername,
                 cfg.soil_cov_conif_rastername,
             )
@@ -173,7 +172,7 @@ class FluxParkRunner:
             start_time_evappar_prep = time.time()
             is_new_year = date.day == 1 and date.month == 1
             if is_new_year or i == 0:
-                (landuse_map, soilm_scp, soilm_pwp, beta) = (
+                (landuse_map, soilm_scp, soilm_pwp, imperv, beta) = (
                     flp.prepgrids.load_fluxpark_raster_inputs(
                         date=date,
                         indir_rasters=self.indir_rasters,
@@ -182,8 +181,8 @@ class FluxParkRunner:
                         landuse_filename=cfg.landuse_rastername,
                         root_soilm_scp_filename=cfg.root_soilm_scp_rastername,
                         root_soilm_pwp_filename=cfg.root_soilm_pwp_rastername,
+                        impervdens_filename=cfg.impervdens_rastername,
                         input_raster_years=self.input_raster_years,
-                        imperv=self.imperv,
                         luse_ids=self.luse_ids,
                         bare_soil_ids=cfg.bare_soil_ids,
                         urban_ids=cfg.urban_ids,
@@ -204,7 +203,7 @@ class FluxParkRunner:
                     self.evap_params,
                     date.dayofyear,
                     landuse_map,
-                    self.imperv,
+                    imperv,
                     cfg.urban_ids,
                     mod_vegcover=cfg.mod_vegcover,
                     soil_cov_decid=self.soil_cov_decid,

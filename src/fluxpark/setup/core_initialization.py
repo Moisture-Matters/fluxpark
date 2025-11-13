@@ -526,12 +526,11 @@ def read_static_maps(
     indir_rasters: Path,
     grid_params: dict,
     mods: dict[str, bool],
-    imperv_filename: str,
     decid_filename: str,
     conif_filename: str,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
     """
-    Load static rasters: imperviousness and (optionally) forest cover maps.
+    Load static rasters: forest cover maps.
 
     Parameters
     ----------
@@ -541,8 +540,6 @@ def read_static_maps(
         Passed as **kwargs to GeoTiffReader.read_and_reproject.
     mods
         Module flags, e.g. {'mod_vegcover': True, …}.
-    imperv_filename
-        The impervious density file name
     conif_filename
         The coniferous forest soil cover file name
     decid_filename
@@ -550,29 +547,26 @@ def read_static_maps(
 
     Returns
     -------
-    imperv
-        Impervious fraction (0 to 1).
     soil_cov_decid
         Deciduous forest cover fraction or None.
     soil_cov_conif
         Coniferous forest cover fraction or None.
     """
-
-    # Imperviousness (0→1)
-    reader = flp.io.GeoTiffReader(indir_rasters / imperv_filename, nodata_value=0)
-    imperv = reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
-
     soil_cov_decid = None
     soil_cov_conif = None
     if mods.get("mod_vegcover", False):
         # Deciduous cover
         reader = flp.io.GeoTiffReader(indir_rasters / decid_filename, nodata_value=0)
-        soil_cov_decid = reader.read_and_reproject(**grid_params).astype(np.float32)
+        soil_cov_decid = (
+            reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
+        )
         soil_cov_decid[soil_cov_decid == 0] = np.nan
 
         # Coniferous cover
         reader = flp.io.GeoTiffReader(indir_rasters / conif_filename, nodata_value=0)
-        soil_cov_conif = reader.read_and_reproject(**grid_params).astype(np.float32)
+        soil_cov_conif = (
+            reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
+        )
         soil_cov_conif[soil_cov_conif == 0] = np.nan
 
-    return imperv, soil_cov_decid, soil_cov_conif
+    return soil_cov_decid, soil_cov_conif
