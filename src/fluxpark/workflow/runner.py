@@ -188,6 +188,9 @@ class FluxParkRunner:
                         urban_ids=cfg.urban_ids,
                     )
                 )
+                # prevent nan values in old["smda"] to progress into new maps
+                old["smda"] = np.where(np.isnan(old["smda"]), 0, old["smda"])
+
             assert landuse_map is not None, "landuse_map must be defined"
             assert soilm_scp is not None, "soilm_scp must be defined"
             assert soilm_pwp is not None, "soilm_pwp must be defined"

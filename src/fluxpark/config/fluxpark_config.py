@@ -123,8 +123,8 @@ class FluxParkConfig:
     indir_masks: Optional[Union[str, Path]] = None
 
     landuse_rastername: str = "{year}_luse_ids.tif"
-    root_soilm_scp_rastername: str = "{year}_root_soilm_fc_scp_mm.tif"
-    root_soilm_pwp_rastername: str = "{year}_root_soilm_fc_pwp_mm.tif"
+    root_soilm_scp_rastername: str = "{year}_root_soilm_fc_scp_mm_x10.tif"
+    root_soilm_pwp_rastername: str = "{year}_root_soilm_fc_pwp_mm_x10.tif"
     impervdens_rastername: str = "{year}_impervdens.tif"
     soil_cov_decid_rastername: str = "forest_decid_soilcov_pct.tif"
     soil_cov_conif_rastername: str = "forest_conif_soilcov_pct.tif"

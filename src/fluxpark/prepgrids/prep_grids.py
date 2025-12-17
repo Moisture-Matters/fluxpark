@@ -102,7 +102,7 @@ def load_fluxpark_raster_inputs(
 
     reader = flp.io.GeoTiffReader(indir_rasters / landuse_file, nodata_value=0)
     landuse_map = reader.read_and_reproject(**grid_params)
-    
+
     if "x10" in soilm_scp_file.lower():
         conv = 0.1
     else:
@@ -116,9 +116,9 @@ def load_fluxpark_raster_inputs(
         conv = 1.0
     reader = flp.io.GeoTiffReader(indir_rasters / soilm_pwp_file, nodata_value=-9999)
     soilm_pwp = reader.read_and_reproject(**grid_params).astype(np.float32) * conv
-    
+
     # 0 should be treated as 0, not as no data. Therefore dummy nodata_value 255.
-    reader = flp.io.GeoTiffReader(indir_rasters / imperv_file, nodata_value=255)
+    reader = flp.io.GeoTiffReader(indir_rasters / imperv_file, nodata_value=0)
     imperv = reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
 
     # # Mask open water and sea
@@ -135,7 +135,7 @@ def load_fluxpark_raster_inputs(
 
     # scale for the urban area.
     urban_mask = np.isin(landuse_map, urban_ids)
-    beta[urban_mask] = (0.038 - 0.02) * (1 - imperv[urban_mask]) + 0.02
+    beta[urban_mask] = (0.038 - 0.01) * (1 - imperv[urban_mask]) + 0.01
 
     # Warn for unexpected land use codes
     for code in np.unique(landuse_map):
@@ -246,7 +246,7 @@ def apply_evaporation_parameters(
 
         sef = soil_evap_fact[urban_mask]
         scf = soil_cov[urban_mask]
-        corr = imperv[urban_mask] * (1 / (1 - scf) - sef)
+        corr = imperv[urban_mask] * (1 / (1 - scf) * sef - sef)
         soil_evap_fact[urban_mask] = sef + corr
 
         ic = int_cap[urban_mask] * (1 - imperv[urban_mask])
