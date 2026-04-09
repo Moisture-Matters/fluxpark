@@ -1,91 +1,55 @@
-import time
 import logging
-import sys
+import time
+from typing import Any, Dict, Optional
+
 import numpy as np
 from numpy.typing import NDArray
+
 import fluxpark as flp
-from fluxpark.workflow import ports
 from fluxpark.submodels.interception import interception_voortman
-from fluxpark.submodels.soilevaporation import soilevap_boestenstroosnijder
 from fluxpark.submodels.rootwateruptake import unsat_reservoirmodel
-from typing import Optional, Dict, Any
+from fluxpark.submodels.soilevaporation import soilevap_boestenstroosnijder
+from fluxpark.workflow import ports
+
+logger = logging.getLogger(__name__)
 
 
 class FluxParkRunner:
     """
-    Runner class for executing a FluxPark simulation using a provided configuration.
+    Runner class for executing a FluxPark simulation.
 
     Parameters
     ----------
     cfg_core : FluxParkConfig
         Core configuration for the FluxPark model.
+    runner_ports : RunnerPorts, optional
+        Collection of workflow ports. If omitted, default open-source
+        ports are used.
     """
 
     def __init__(
         self,
         cfg_core: flp.config.FluxParkConfig,
-        execution_context_port: Optional[ports.ExecutionContextPort] = None,
-        initial_data_port: Optional[ports.InitalDataPort] = None,
-        ancillary_raster_port: Optional[ports.AncillaryRasterPort] = None,
-        rain_provider_port: Optional[ports.RainProviderPort] = None,
-        etref_provider_port: Optional[ports.EtrefProviderPort] = None,
-        daily_input_modifier_port: Optional[ports.DailyInputModifierPort] = None,
-        daily_output_modifier_port: Optional[ports.DailyOutputModifierPort] = None,
-        output_port: Optional[ports.OutputPort] = None,
+        runner_ports: Optional[ports.RunnerPorts] = None,
     ):
         self.cfg = cfg_core
-        self.setup_logger()
+        self.ports = runner_ports or ports.RunnerPorts()
 
-        # Port 1: execution context
-        self.execution_context_port = (
-            execution_context_port or ports.default_execution_context
-        )
-        self.context = {}
+        # runtime/setup state
+        self.context: Dict[str, Any] = {}
+        self.initial_data: Dict[str, Any] = {}
+        self.ancillary_rasters: Dict[str, Any] = {}
 
-        # Port 2: state provider at the end of setup
-        self.initial_data_port = initial_data_port or ports.default_initial_data
-        self.initial_port = {}
+        # daily runtime state
+        self.current_input_rasters: Dict[str, Any] = {}
+        self.current_evap_params: Dict[str, Any] = {}
 
-        # Port 3: ancillary raster port
-        self.ancillary_raster_port = (
-            ancillary_raster_port or ports.default_ancillary_raster
-        )
-        self.ancillary_rasters = {}
-
-        # Port 4: rain input
-        self.rain_provider_port = rain_provider_port or ports.default_rain_provider
-        self.rain = {}
-
-        # Port 5: etref input
-        self.etref_provider_port = etref_provider_port or ports.default_etref_provider
-        self.etref = {}
-
-        # Port 6: daily input modifier port, pre-core
-        self.daily_input_modifier_port = (
-            daily_input_modifier_port or ports.default_daily_input_modifier
-        )
-
-        # Port 7: daily output modifier port, post-core
-        self.daily_output_modifier_port = (
-            daily_output_modifier_port or ports.default_daily_output_modifier
-        )
-
-        # Port 8: output port
-        self.output_port = output_port or ports.default_output_port
-
-    def setup_logger(self):
-        logging.basicConfig(
-            stream=sys.stdout,
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-
-    def setup(self):
+    def setup(self) -> None:
+        """Prepare static data and initial model state."""
         cfg = self.cfg
 
-        # port 1. Initialze port configuraiton (e.g. DB handles)
-        self.context = self.execution_context_port(cfg)
+        # runtime/environment-specific context
+        self.context = self.ports.execution_context(cfg)
 
         # time information
         self.dates = flp.setup.parse_dates(cfg.date_start, cfg.date_end)
@@ -106,7 +70,7 @@ class FluxParkRunner:
             cfg.intermediate_dir,
         )
 
-        # compute grid parameters
+        # grid parameters
         self.grid_params = flp.setup.compute_grid_params(
             cfg.x_min,
             cfg.x_max,
@@ -118,28 +82,36 @@ class FluxParkRunner:
             cfg.mask,
         )
 
-        # read evaporation parameters
+        # evaporation parameters
         self.evap_params = flp.setup.load_evap_params(
-            self.indir_tables, cfg.evap_param_table
+            self.indir_tables,
+            cfg.evap_param_table,
         )
 
-        # read the ids of landuse and corresponding evaporation ids
-        (self.luse_ids, self.evap_ids, self.luse_label) = flp.setup.load_luse_evap_conv(
+        # land-use / evaporation conversion
+        self.luse_ids, self.evap_ids, self.luse_label = flp.setup.load_luse_evap_conv(
             self.indir_tables
         )
 
-        # read conversion table from luse
-        (self.conv_output_table, self.conv_output, self.conv_var) = (
-            flp.setup.load_conv_output(self.indir_tables, cfg.output_mapping)
+        # output conversion
+        self.conv_output_table, self.conv_output, self.conv_var = (
+            flp.setup.load_conv_output(
+                self.indir_tables,
+                cfg.output_mapping,
+            )
         )
 
-        # merge active mods and raster names in a dict.
-        self.mods = {k: v for k, v in vars(cfg).items() if k.startswith("mod_")}
+        # active modules and raster names
+        self.mods = {
+            key: value for key, value in vars(cfg).items() if key.startswith("mod_")
+        }
         self.rasternames = {
-            k: v for k, v in vars(cfg).items() if k.endswith("_rastername")
+            key: value
+            for key, value in vars(cfg).items()
+            if key.endswith("_rastername")
         }
 
-        # determine all output names, variable names, and type
+        # output and rerun bookkeeping
         (
             self.out_par_list,
             self.calc_par_list,
@@ -155,8 +127,8 @@ class FluxParkRunner:
             cfg.store_states,
         )
 
-        # determine the use of dynamic landuse and the provided years.
-        (self.dynamic_landuse, self.input_raster_years) = (
+        # dynamic land use
+        self.dynamic_landuse, self.input_raster_years = (
             flp.setup.detect_dynamic_landuse_and_years(
                 cfg.landuse_rastername,
                 cfg.root_soilm_scp_rastername,
@@ -165,8 +137,8 @@ class FluxParkRunner:
             )
         )
 
-        # read static input rasters
-        (self.soil_cov_decid, self.soil_cov_conif) = flp.setup.read_static_maps(
+        # static input rasters
+        self.soil_cov_decid, self.soil_cov_conif = flp.setup.read_static_maps(
             self.indir_rasters,
             self.grid_params,
             self.mods,
@@ -174,67 +146,95 @@ class FluxParkRunner:
             cfg.soil_cov_conif_rastername,
         )
 
-        # initialize rasters of the previous timestep (initial)
+        # initial loop state
         self.old = flp.setup.init_old(
-            self.rerun_var_list, self.grid_params["nrows"], self.grid_params["ncols"]
+            self.rerun_var_list,
+            self.grid_params["nrows"],
+            self.grid_params["ncols"],
         )
 
-        # port 2. initial state provider, e.g. more inital rasters and override old
-        self.initial_port = self.initial_data_port(self)
-        self.old.update(self.initial_port["old"])
+        # optional initial data/state override
+        self.initial_data = self.ports.initial_data(self)
+        self.old.update(self.initial_data.get("old", {}))
 
-    def run(self):
+    def _log_timing_summary(self, timings: Dict[str, float], total_time: float) -> None:
+        """Log timing summary for the run."""
+        total_stages = sum(timings.values())
+        overhead = total_time - total_stages
+
+        logger.info("finished calculations %.2f sec", total_time)
+
+        for label, value in timings.items():
+            pct = (value / total_time * 100.0) if total_time > 0 else 0.0
+            logger.info("%s %.2f sec, %.2f %%", label, value, pct)
+
+        overhead_pct = (overhead / total_time * 100.0) if total_time > 0 else 0.0
+        logger.info(
+            "initialization and overhead %.2f sec, %.2f %%",
+            overhead,
+            overhead_pct,
+        )
+
+    def run(self) -> None:
+        """Execute the FluxPark simulation."""
         self.setup()
         cfg = self.cfg
         old = self.old
 
-        tot_time = time.time()
+        total_start = time.time()
+
         tot_time_rain_prep = 0.0
         tot_time_etref_prep = 0.0
         tot_time_raster_prep = 0.0
         tot_time_evappar_prep = 0.0
-        tot_time_mod_seen = 0.0
         tot_time_int_calc = 0.0
         tot_time_soilevap_calc = 0.0
         tot_time_trans_calc = 0.0
         tot_time_postp = 0.0
         tot_time_writing = 0.0
 
-        # initialize array to explitly test typing.
+        # Explicitly initialize for typing and yearly refresh logic.
         landuse_map: Optional[NDArray[Any]] = None
         soilm_scp: Optional[NDArray[Any]] = None
         soilm_pwp: Optional[NDArray[Any]] = None
         imperv: Optional[NDArray[Any]] = None
         beta: Optional[NDArray[Any]] = None
-        self.current_input_rasters = {}
-        daily_output = {}
+
         for i, date in enumerate(self.dates):
             self.i = i
             self.date = date
-            logging.info(f"t = {date.date()}")
-
-            start_time_raster_prep = time.time()
-            # read rasters if needed
-            start_time_evappar_prep = time.time()
             self.is_new_year = date.day == 1 and date.month == 1
+
+            logger.info("t = %s", date.date())
+
+            daily_output: Dict[str, Any] = {}
+
+            # prepare input rasters
+            start_time_raster_prep = time.time()
+
             if self.is_new_year or i == 0:
-                (landuse_map, soilm_scp, soilm_pwp, imperv, beta) = (
-                    flp.prepgrids.load_fluxpark_raster_inputs(
-                        date=date,
-                        indir_rasters=self.indir_rasters,
-                        grid_params=self.grid_params,
-                        dynamic_landuse=self.dynamic_landuse,
-                        landuse_filename=cfg.landuse_rastername,
-                        root_soilm_scp_filename=cfg.root_soilm_scp_rastername,
-                        root_soilm_pwp_filename=cfg.root_soilm_pwp_rastername,
-                        impervdens_filename=cfg.impervdens_rastername,
-                        input_raster_years=self.input_raster_years,
-                        luse_ids=self.luse_ids,
-                        bare_soil_ids=cfg.bare_soil_ids,
-                        urban_ids=cfg.urban_ids,
-                    )
+                (
+                    landuse_map,
+                    soilm_scp,
+                    soilm_pwp,
+                    imperv,
+                    beta,
+                ) = flp.prepgrids.load_fluxpark_raster_inputs(
+                    date=date,
+                    indir_rasters=self.indir_rasters,
+                    grid_params=self.grid_params,
+                    dynamic_landuse=self.dynamic_landuse,
+                    landuse_filename=cfg.landuse_rastername,
+                    root_soilm_scp_filename=cfg.root_soilm_scp_rastername,
+                    root_soilm_pwp_filename=cfg.root_soilm_pwp_rastername,
+                    impervdens_filename=cfg.impervdens_rastername,
+                    input_raster_years=self.input_raster_years,
+                    luse_ids=self.luse_ids,
+                    bare_soil_ids=cfg.bare_soil_ids,
+                    urban_ids=cfg.urban_ids,
                 )
-                # prevent nan values in old["smda"] to progress into new maps
+
+                # Prevent NaN values in old["smda"] from propagating into new maps.
                 old["smda"] = np.where(np.isnan(old["smda"]), 0, old["smda"])
 
             assert landuse_map is not None, "landuse_map must be defined"
@@ -243,25 +243,21 @@ class FluxParkRunner:
             assert imperv is not None, "imperv must be defined"
             assert beta is not None, "beta must be defined"
 
-            self.current_input_rasters.update(
-                {
-                    "landuse_map": landuse_map,
-                    "soilm_scp": soilm_scp,
-                    "soilm_pwp": soilm_pwp,
-                    "imperv": imperv,
-                    "beta": beta,
-                }
-            )
+            self.current_input_rasters = {
+                "landuse_map": landuse_map,
+                "soilm_scp": soilm_scp,
+                "soilm_pwp": soilm_pwp,
+                "imperv": imperv,
+                "beta": beta,
+            }
 
-            # port 3. ancillary raster port
-            ancillary_rasters = self.ancillary_raster_port(self)
-            self.current_input_rasters.update(ancillary_rasters)
+            self.ancillary_rasters = self.ports.ancillary_raster(self)
+            self.current_input_rasters.update(self.ancillary_rasters)
 
             tot_time_raster_prep += time.time() - start_time_raster_prep
 
+            # prepare evaporation parameters
             start_time_evappar_prep = time.time()
-            # evaporation parameters
-            # (trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact)
             self.current_evap_params = flp.prepgrids.apply_evaporation_parameters(
                 self.luse_ids,
                 self.evap_ids,
@@ -276,39 +272,40 @@ class FluxParkRunner:
             )
             tot_time_evappar_prep += time.time() - start_time_evappar_prep
 
-            # port 4. for rain input
+            # rain input
             start_time_rain_prep = time.time()
-            rain = self.rain_provider_port(self)
-            # validate grid
+            rain = self.ports.rain_provider(self)
             skip_day = flp.utils.validate_grid(
                 rain,
-                expected_shape=(self.grid_params["nrows"], self.grid_params["ncols"]),
+                expected_shape=(
+                    self.grid_params["nrows"],
+                    self.grid_params["ncols"],
+                ),
                 name="rain",
                 nan_policy=cfg.nan_policy,
             )
-            # skip day
             if skip_day:
-                logging.warning("Skipping day because rain contains NaN or is None.")
+                logger.warning("Skipping day because rain contains NaN or is None.")
                 continue
             tot_time_rain_prep += time.time() - start_time_rain_prep
 
-            # port 5. for etref input
+            # etref input
             start_time_etref_prep = time.time()
-            etref = self.etref_provider_port(self)
-            # validate grid
+            etref = self.ports.etref_provider(self)
             skip_day = flp.utils.validate_grid(
                 etref,
-                expected_shape=(self.grid_params["nrows"], self.grid_params["ncols"]),
+                expected_shape=(
+                    self.grid_params["nrows"],
+                    self.grid_params["ncols"],
+                ),
                 name="etref",
                 nan_policy=cfg.nan_policy,
             )
-            # skip day
             if skip_day:
-                logging.warning("Skipping day because etref contains NaN or is None.")
+                logger.warning("Skipping day because etref contains NaN or is None.")
                 continue
             tot_time_etref_prep += time.time() - start_time_etref_prep
 
-            # add the meteo input to the evap_params
             self.current_evap_params.update(
                 {
                     "rain": rain,
@@ -316,15 +313,14 @@ class FluxParkRunner:
                 }
             )
 
-            # port 5. daily input modifier, pre-core
-            modifier = self.daily_input_modifier_port(self, old)
+            # pre-core modifier
+            modifier = self.ports.daily_input_modifier(self, old)
             daily_output.update(modifier["daily_output"])
             old.update(modifier["states"])
             self.current_evap_params.update(modifier["current_evap_params"])
 
             # unpack current evaporation parameters
             evap = self.current_evap_params
-
             trans_fact = evap["trans_fact"]
             soil_evap_fact = evap["soil_evap_fact"]
             int_cap = evap["int_cap"]
@@ -336,7 +332,11 @@ class FluxParkRunner:
             # interception
             start_time_int_calc = time.time()
             int_evap, int_store, throughfall, int_timefrac = interception_voortman(
-                etref * 1.25 + int_cap, rain, int_cap, soil_cov, old["int_store"]
+                etref * 1.25 + int_cap,
+                rain,
+                int_cap,
+                soil_cov,
+                old["int_store"],
             )
             tot_time_int_calc += time.time() - start_time_int_calc
 
@@ -344,15 +344,20 @@ class FluxParkRunner:
             start_time_soilevap_calc = time.time()
             soil_evap_pot = etref * soil_evap_fact * (1.0 - soil_cov)
             soil_evap_act_est, sum_ep, sum_ea = soilevap_boestenstroosnijder(
-                throughfall, soil_evap_pot, beta, old["sum_ep"], old["sum_ea"]
+                throughfall,
+                soil_evap_pot,
+                beta,
+                old["sum_ep"],
+                old["sum_ea"],
             )
             tot_time_soilevap_calc += time.time() - start_time_soilevap_calc
 
             # transpiration
             start_time_trans_calc = time.time()
-
             trans_pot = etref * trans_fact * soil_cov * (1.0 - int_timefrac)
+
             old["smda"][old["smda"] > soilm_pwp] = soilm_pwp[old["smda"] > soilm_pwp]
+
             eta, smdp, smda, prec_surplus = unsat_reservoirmodel(
                 throughfall,
                 soil_evap_act_est + trans_pot,
@@ -360,11 +365,13 @@ class FluxParkRunner:
                 soilm_scp,
                 soilm_pwp,
             )
+
             open_water_evap_act = openwater_fact * etref
             tot_time_trans_calc += time.time() - start_time_trans_calc
 
-            # post processing daily rasters
+            # post-process daily rasters
             start_time_postp = time.time()
+
             daily_output_update = flp.postprocessing.post_process_daily(
                 eta,
                 trans_pot,
@@ -392,12 +399,12 @@ class FluxParkRunner:
                 }
             )
 
-            # port 6. daily output modifier, post-core
-            modifier = self.daily_output_modifier_port(daily_output, old, self)
+            # post-core modifier
+            modifier = self.ports.daily_output_modifier(daily_output, old, self)
             daily_output.update(modifier["daily_output"])
             old.update(modifier["states"])
 
-            # post processing cumulative rasters
+            # cumulative outputs
             cum_output, old = flp.postprocessing.update_cumulative_fluxes(
                 daily_output,
                 old,
@@ -409,7 +416,11 @@ class FluxParkRunner:
             )
 
             flp.workflow.update_loop_state(
-                old, self.rerun_par_list, self.conv_output, daily_output, cum_output
+                old,
+                self.rerun_par_list,
+                self.conv_output,
+                daily_output,
+                cum_output,
             )
             tot_time_postp += time.time() - start_time_postp
 
@@ -435,62 +446,19 @@ class FluxParkRunner:
             )
             tot_time_writing += time.time() - start_time_writing
 
-            # port 7. final output processing
-            self.output_port(self)
+            # optional output hook
+            self.ports.output(self)
 
-        # logging timings
-        tot_time = time.time() - tot_time
-        stages = [
-            tot_time_rain_prep,
-            tot_time_etref_prep,
-            tot_time_raster_prep,
-            tot_time_evappar_prep,
-            tot_time_mod_seen,
-            tot_time_int_calc,
-            tot_time_soilevap_calc,
-            tot_time_trans_calc,
-            tot_time_postp,
-            tot_time_writing,
-        ]
-        tot_time_overhead = tot_time - sum(stages)
-        logging.info(f"finished calculations {tot_time:.2f} sec")
-        logging.info(
-            f"preparing rain {tot_time_rain_prep:.2f} sec, "
-            f"{tot_time_rain_prep/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"preparing etref {tot_time_etref_prep:.2f} sec, "
-            f"{tot_time_etref_prep/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"preparing input rasters {tot_time_raster_prep:.2f} sec, "
-            f"{tot_time_raster_prep/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"preparing evaporation parameters {tot_time_evappar_prep:.2f} sec, "
-            f"{tot_time_evappar_prep/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"calculation interception {tot_time_int_calc:.2f} sec, "
-            f"{tot_time_int_calc/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"calculation soil evaporation {tot_time_soilevap_calc:.2f} sec, "
-            f"{tot_time_soilevap_calc/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"calculation transpiration {tot_time_trans_calc:.2f} sec, "
-            f"{tot_time_trans_calc/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"post-processing {tot_time_postp:.2f} sec, "
-            f"{tot_time_postp/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"writing output {tot_time_writing:.2f} sec, "
-            f"{tot_time_writing/tot_time*100:.2f} %"
-        )
-        logging.info(
-            f"initialization and overhead {tot_time_overhead:.2f} sec, "
-            f"{tot_time_overhead/tot_time*100:.2f} %"
-        )
+        total_time = time.time() - total_start
+        timings = {
+            "preparing rain": tot_time_rain_prep,
+            "preparing etref": tot_time_etref_prep,
+            "preparing input rasters": tot_time_raster_prep,
+            "preparing evaporation parameters": tot_time_evappar_prep,
+            "calculation interception": tot_time_int_calc,
+            "calculation soil evaporation": tot_time_soilevap_calc,
+            "calculation transpiration": tot_time_trans_calc,
+            "post-processing": tot_time_postp,
+            "writing output": tot_time_writing,
+        }
+        self._log_timing_summary(timings, total_time)

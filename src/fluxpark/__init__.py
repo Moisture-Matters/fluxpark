@@ -18,7 +18,7 @@ from . import submodels
 from . import utils
 from . import workflow
 from .workflow import adapters
-from .workflow.runner import FluxParkRunner
+from .workflow import FluxParkRunner, RunnerPorts
 
 __all__ = [
     "config",
@@ -30,6 +30,7 @@ __all__ = [
     "workflow",
     "adapters",
     "FluxParkRunner",
+    "RunnerPorts",
 ]
 
 for loader, module_name, is_pkg in pkgutil.iter_modules(submodels.__path__):
