@@ -49,14 +49,18 @@ def check_output_files(
     for mod_key, enabled in mod_flags.items():
         if not enabled:
             continue
-        mod_col = mod_key
+
         calc_col = f"calc_{mod_key}"
-        if mod_col in conv_output_df.columns:
-            conv_output_df_sel = pd.concat(
-                [conv_output_df_sel, conv_output_df[conv_output_df[mod_col] == 1]]
-            )
+
+        conv_output_df_sel = pd.concat(
+            [
+                conv_output_df_sel,
+                conv_output_df[conv_output_df["mod"] == mod_key],
+            ]
+        )
+
         if calc_col in conv_output_df.columns:
-            calc_par_list += conv_output_df[
+            calc_par_list += conv_output_df.loc[
                 conv_output_df[calc_col] == 1
             ].index.tolist()
 
@@ -209,6 +213,7 @@ def parse_dates(start: str, end: str) -> pd.DatetimeIndex:
 def resolve_dirs(
     outdir: Union[str, Path],
     indir: Union[str, Path],
+    indir_tables: Optional[Union[str, Path]] = None,
     indir_rasters: Optional[Union[str, Path]] = None,
     indir_masks: Optional[Union[str, Path]] = None,
     intermediate_dir: Optional[Union[str, Path]] = None,
@@ -236,6 +241,7 @@ def resolve_dirs(
     """
     out_p = Path(outdir)
     in_p = Path(indir)
+    table_p = Path(indir_tables) if indir_tables else in_p / "tables"
     rasters_p = Path(indir_rasters) if indir_rasters else in_p / "rasters"
     masks_p = Path(indir_masks) if indir_masks else in_p / "masks"
     if intermediate_dir:
@@ -245,7 +251,7 @@ def resolve_dirs(
         # be excplicit prevents typing problems
         intermediate_dir = None
 
-    return out_p, in_p, rasters_p, masks_p, intermediate_dir
+    return out_p, table_p, rasters_p, masks_p, intermediate_dir
 
 
 def compute_grid_params(

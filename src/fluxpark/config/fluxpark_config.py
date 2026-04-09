@@ -40,6 +40,8 @@ class FluxParkConfig:
          fluxpark_output_mapping.csv.
      indir : Union[str, Path], default='./input_data'
          Root directory containing all input files.
+     indir_tables : Optional[Union[str, Path]], default=None
+         Directory containing table input files. If None, defaults to `indir/tables`.
      indir_rasters : Optional[Union[str, Path]], default=None
          Directory containing raster input files. If None, defaults to `indir/rasters`.
      indir_masks : Optional[Union[str, Path]], default=None
@@ -61,9 +63,9 @@ class FluxParkConfig:
          changes yearly this file should also be available yearly.
      impervdens_rastername : str, default="{year}_impervdens.tif"
          Filename of the imperviousness raster.
-     soil_cov_decid_rastername : str, default="forest_decid_soilcov_100m_3035.tif"
+     soil_cov_decid_rastername : str, default="forest_decid_soilcov_pct.tif"
          Filename of the deciduous forest cover raster.
-     soil_cov_conif_rastername : str, default="forest_conif_soilcov_100m_3035.tif"
+     soil_cov_conif_rastername : str, default="forest_conif_soilcov_pct.tif"
          Filename of the coniferous forest cover raster.
      output_mapping : str, default="fluxpark_output_mapping.csv"
          Filename of the mapping table from variables to parameters.
@@ -102,6 +104,10 @@ class FluxParkConfig:
      intermediate_dir : Optional[Union[str, Path]], default=None
          Optional intermediate directory for temporary files like point information if
          using interpolation.
+    nan_policy : str, default="error"
+         Policy for handling NaN values in rain or etref rasters. Options are
+         "error", "allow", or "skip". If set to "skip", the current simulation
+         day is skipped.
     """
 
     # Positional (non-default) arguments
@@ -119,6 +125,7 @@ class FluxParkConfig:
     mask: Optional[str] = None
     output_files: Union[str, list[str], list[int]] = "flagship"
     indir: Union[str, Path] = "./input_data"
+    indir_tables: Optional[Union[str, Path]] = None
     indir_rasters: Optional[Union[str, Path]] = None
     indir_masks: Optional[Union[str, Path]] = None
 
@@ -149,3 +156,5 @@ class FluxParkConfig:
 
     outdir: Union[str, Path] = "./output_data"
     intermediate_dir: Optional[Union[str, Path]] = None
+
+    nan_policy: str = "error"

@@ -1,7 +1,7 @@
 import fluxpark as flp
 import numpy as np
 from numpy.typing import NDArray
-from typing import Optional
+from typing import Optional, TypedDict
 import logging
 import bisect
 
@@ -147,6 +147,14 @@ def load_fluxpark_raster_inputs(
     return landuse_map, soilm_scp, soilm_pwp, imperv, beta
 
 
+class EvapParamDict(TypedDict):
+    trans_fact: NDArray[np.floating]
+    soil_evap_fact: NDArray[np.floating]
+    int_cap: NDArray[np.floating]
+    soil_cov: NDArray[np.floating]
+    openwater_fact: NDArray[np.floating]
+
+
 def apply_evaporation_parameters(
     luse_ids: NDArray[np.integer],
     evap_ids: NDArray[np.integer],
@@ -159,13 +167,7 @@ def apply_evaporation_parameters(
     mod_vegcover: bool = False,
     soil_cov_decid: Optional[NDArray[np.floating]] = None,
     soil_cov_conif: Optional[NDArray[np.floating]] = None,
-) -> tuple[
-    NDArray[np.floating],
-    NDArray[np.floating],
-    NDArray[np.floating],
-    NDArray[np.floating],
-    NDArray[np.floating],
-]:
+) -> EvapParamDict:
     """
     Apply evaporation parameters based on land use and day of year.
 
@@ -175,28 +177,28 @@ def apply_evaporation_parameters(
         Array of land use IDs.
     evap_ids : ndarray
         Array of evaporation parameter IDs.
-    evap_params : DataFrame
-        Table with evaporation parameters per evap_id and day.
-    doy : ndarray
+    evap_params : dict[str, ndarray]
+        Dictionary with evaporation parameters per ``evap_id`` and day of
+        year.
+    doy : int
         Day-of-year for the current timestep.
     landuse_map : ndarray
         Map with land use class IDs.
     imperv : ndarray
         Map with impervious fractions.
-    trans_fact : ndarray
-        Output array to be filled with transpiration factors.
-    soil_evap_fact : ndarray
-        Output array to be filled with soil evaporation factors.
-    int_cap : ndarray
-        Output array to be filled with interception capacities.
-    soil_cov : ndarray
-        Output array to be filled with soil cover fractions.
+    urban_ids : list[int]
+        Array of land use IDs considered urban.
     mod_vegcover : bool, optional
         If True, apply vegetation cover corrections.
     soil_cov_decid : ndarray, optional
         Map with spatial vegetation cover for deciduous forests.
     soil_cov_conif : ndarray, optional
         Map with spatial vegetation cover for coniferous forests.
+
+    Returns
+    -------
+    EvapParamDict
+        Dictionary with evaporation parameter arrays for the current timestep.
     """
     # 0) allocate outputs
     shape = landuse_map.shape
@@ -267,4 +269,12 @@ def apply_evaporation_parameters(
             conv_fac = cover_map[mask] / max_table_cov
             soil_cov[mask] = soil_cov[mask] * conv_fac
 
-    return trans_fact, soil_evap_fact, int_cap, soil_cov, openwater_fact
+    result: EvapParamDict = {
+        "trans_fact": trans_fact,
+        "soil_evap_fact": soil_evap_fact,
+        "int_cap": int_cap,
+        "soil_cov": soil_cov,
+        "openwater_fact": openwater_fact,
+    }
+
+    return result

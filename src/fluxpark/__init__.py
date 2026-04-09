@@ -17,6 +17,7 @@ from . import prepgrids
 from . import submodels
 from . import utils
 from . import workflow
+from .workflow import adapters
 from .workflow.runner import FluxParkRunner
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "prepgrids",
     "utils",
     "workflow",
+    "adapters",
     "FluxParkRunner",
 ]
 
