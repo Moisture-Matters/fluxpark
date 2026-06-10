@@ -2,7 +2,7 @@
 **A spatially explicit hydrological model for simulating evaporation fluxes & groundwater recharge**
 
 ### Overview  
-FluxPark is an open‑source Python library that transforms daily meteorological data and land‑use maps into spatially distributed evaporation and recharge estimates. It’s built for:
+FluxPark is an open‑source Python library that transforms daily meteorological data and land‑use maps into spatially distributed evaporation and recharge estimates. It's built for:
 
 - **Speed & simplicity**: Few parameters and efficient computation make it ideal for rapid calibration and custom adaptation.  
 - **Process separation**: By modelling interception, transpiration and soil evaporation separately, FluxPark reacts realistically to changing weather and soil moisture conditions.  
@@ -63,13 +63,13 @@ A unique feature of FluxPark is that all evaporation parameters can be *scaled* 
 
 The core simulation is orchestrated by the **FluxParkRunner**, which handles setup and time‑stepping. Users configure the model via the **FluxParkConfig** class—inspect its docstring to explore all available options.
 
-Below is a minimal example that runs a 10‑day simulation over a specified area. Note that **precipitation** and **reference evapotranspiration** data must be supplied by the user via “input hooks,” allowing you to pull meteorological records (from APIs, files, etc.) and return 2D NumPy arrays for each timestep.
+FluxPark uses a **ports and adapters** pattern to decouple data sources from the model core. The `RunnerPorts` dataclass defines all input and output connections; built‑in adapters are available under `flp.adapters`. You can also write your own adapters to supply meteorological data.
+
+### Example 1 — KNMI NetCDF files (built‑in adapter)
 
 ```python
 import fluxpark as flp
-import numpy as np
 
-# configuration
 cfg = flp.config.FluxParkConfig(
     date_start="2021-01-01",
     date_end="2021-01-10",
@@ -84,20 +84,57 @@ cfg = flp.config.FluxParkConfig(
     indir="./input_data",
     outdir="./output_data")
 
-# define rain as constant (3.0 mm/d)
-def rain_grid(date, grid_params):
-    rain = np.full((grid_params['nrows'], grid_params['ncols']), 3.0)
-    return rain
-
-# define etref as constant (1.0 mm/d)
-def etref_grid(date, grid_params):
-    etref = np.full((grid_params['nrows'], grid_params['ncols']), 1.0)
-    return etref
-
-# run the model
-runner = flp.FluxParkRunner(
-    cfg, input_hooks={"get_rain": rain_grid, "get_etref": etref_grid}
+runner_ports = flp.RunnerPorts(
+    rain_provider=flp.adapters.make_knmi_netcdf_rain_provider(
+        r"./input_data/knmi/prec"
+    ),
+    etref_provider=flp.adapters.make_knmi_netcdf_etref_provider(
+        r"./input_data/knmi/etref"
+    ),
 )
+
+runner = flp.FluxParkRunner(cfg, runner_ports=runner_ports)
+runner.run()
+```
+
+### Example 2 — custom adapter
+
+You can supply any data source by writing a provider function that accepts the runner object and returns a 2D NumPy array. The runner object exposes `runner.date` (current date) and `runner.grid_params` (grid dimensions and projection).
+
+```python
+import fluxpark as flp
+import numpy as np
+
+cfg = flp.config.FluxParkConfig(
+    date_start="2021-01-01",
+    date_end="2021-01-10",
+    calc_epsg_code=28992,
+    x_min=81000.0,
+    x_max=152000.0,
+    y_min=454000.0,
+    y_max=580000.0,
+    cellsize=100,
+    evap_param_table="20250708_evap_parameters.xlsx",
+    output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
+    indir="./input_data",
+    outdir="./output_data")
+
+def my_rain_provider(runner):
+    # Return a constant rain grid of 3.0 mm/d
+    shape = (runner.grid_params["nrows"], runner.grid_params["ncols"])
+    return np.full(shape, 3.0, dtype="float32")
+
+def my_etref_provider(runner):
+    # Return a constant ETref grid of 1.0 mm/d
+    shape = (runner.grid_params["nrows"], runner.grid_params["ncols"])
+    return np.full(shape, 1.0, dtype="float32")
+
+runner_ports = flp.RunnerPorts(
+    rain_provider=my_rain_provider,
+    etref_provider=my_etref_provider,
+)
+
+runner = flp.FluxParkRunner(cfg, runner_ports=runner_ports)
 runner.run()
 ```
 

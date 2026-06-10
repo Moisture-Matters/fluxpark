@@ -2,7 +2,7 @@
 example_run_rain_etref_constant.py
 
 A minimal example demonstrating how to configure and run FluxPark
-with custom rain and ETref input hooks.
+with custom rain and ETref adapters supplying constant values.
 """
 
 import fluxpark as flp
@@ -24,17 +24,20 @@ cfg = flp.config.FluxParkConfig(
     outdir="./output_data")
 
 # define rain as constant (3.0 mm/d)
-def rain_grid(date, grid_params):
-    rain = np.full((grid_params['nrows'], grid_params['ncols']), 3.0)
-    return rain
+def my_rain_provider(runner):
+    shape = (runner.grid_params["nrows"], runner.grid_params["ncols"])
+    return np.full(shape, 3.0, dtype="float32")
 
 # define etref as constant (1.0 mm/d)
-def etref_grid(date, grid_params):
-    etref = np.full((grid_params['nrows'], grid_params['ncols']), 1.0)
-    return etref
+def my_etref_provider(runner):
+    shape = (runner.grid_params["nrows"], runner.grid_params["ncols"])
+    return np.full(shape, 1.0, dtype="float32")
 
 # run the model
-runner = flp.FluxParkRunner(
-    cfg, input_hooks={"get_rain": rain_grid, "get_etref": etref_grid}
+runner_ports = flp.RunnerPorts(
+    rain_provider=my_rain_provider,
+    etref_provider=my_etref_provider,
 )
+
+runner = flp.FluxParkRunner(cfg, runner_ports=runner_ports)
 runner.run()
