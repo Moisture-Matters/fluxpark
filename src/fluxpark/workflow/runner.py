@@ -3,6 +3,7 @@ import time
 from typing import Any, Dict, Optional
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
 import fluxpark as flp
@@ -125,6 +126,7 @@ class FluxParkRunner:
             self.conv_output_table,
             self.conv_output,
             cfg.store_states,
+            cfg.eval_waterbalance,
         )
 
         # dynamic land use
@@ -180,6 +182,22 @@ class FluxParkRunner:
         self.setup()
         cfg = self.cfg
         old = self.old
+
+        flp.config.save_cfg(cfg, self.outdir)
+
+        if cfg.eval_waterbalance:
+            init_date = self.dates[0] - pd.Timedelta(days=1)
+            nrows = self.grid_params["nrows"]
+            ncols = self.grid_params["ncols"]
+            flp.postprocessing.write_output_tif(
+                self.old.get("smda", np.zeros((nrows, ncols), dtype=np.float32)).copy(),
+                f"{init_date.strftime('%Y%m%d')}-soilm_def_act_mm.tif",
+                np.ones((nrows, ncols), dtype=np.int32),
+                [],
+                False,
+                self.outdir,
+                cfg.x_min, cfg.y_max, cfg.cellsize, cfg.calc_epsg_code,
+            )
 
         total_start = time.time()
 
@@ -360,6 +378,10 @@ class FluxParkRunner:
             mask = valid & (old["smda"] > soilm_pwp)
             old["smda"][mask] = soilm_pwp[mask]
 
+            # open water evaporation
+            open_water_evap_act = openwater_fact * etref
+
+            # reservoir model
             eta, smdp, smda, prec_surplus = unsat_reservoirmodel(
                 throughfall,
                 soil_evap_act_est + trans_pot,
@@ -368,7 +390,6 @@ class FluxParkRunner:
                 soilm_pwp,
             )
 
-            open_water_evap_act = openwater_fact * etref
             tot_time_trans_calc += time.time() - start_time_trans_calc
 
             # post-process daily rasters
@@ -389,13 +410,13 @@ class FluxParkRunner:
                 prec_surplus,
                 cfg.open_water_ids,
             )
-            
+
             # runoff for impervious area
             runoff = prec_surplus * imperv * cfg.impervious_runoff_fraction
-            
+
             # recharge
             recharge = prec_surplus - runoff
-            
+
             daily_output.update(daily_output_update)
             daily_output.update(
                 {
@@ -473,3 +494,6 @@ class FluxParkRunner:
             "writing output": tot_time_writing,
         }
         self._log_timing_summary(timings, total_time)
+
+        if cfg.eval_waterbalance:
+            flp.postprocessing.eval_waterbalance(self.outdir)

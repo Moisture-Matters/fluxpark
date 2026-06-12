@@ -9,8 +9,23 @@ import logging
 import os
 
 
+WATERBALANCE_REQUIRED_PARAMS = [
+    "prec_cum_ytd_mm",
+    "int_act_cum_ytd_mm",
+    "trans_act_cum_ytd_mm",
+    "soil_evap_act_cum_ytd_mm",
+    "runoff_cum_ytd_mm",
+    "recharge_cum_ytd_mm",
+    "soilm_def_act_mm",
+]
+
+
 def check_output_files(
-    output_files: str, conv_output_df: pd.DataFrame, mod_flags: dict, store_states: bool
+    output_files: str,
+    conv_output_df: pd.DataFrame,
+    mod_flags: dict,
+    store_states: bool,
+    eval_waterbalance: bool = False,
 ):
     """
     Determine which parameters should be written, calculated, and aggregated.
@@ -31,6 +46,9 @@ def check_output_files(
         e.g. {'mod_dynamic_grass': True, 'mod_seen': False}
     store_states: bool
         If true, calculation parameters are added to the output list.
+    eval_waterbalance : bool, default False
+        If true, parameters required for water balance evaluation are added
+        to the output list.
 
     Returns
     -------
@@ -120,6 +138,19 @@ def check_output_files(
         and "trans_rel_pct" not in output_par_list
     ):
         output_par_list.append("trans_rel_pct")
+
+    # Force waterbalance parameters into output list before building cum_par_list
+    if eval_waterbalance:
+        for par in WATERBALANCE_REQUIRED_PARAMS:
+            if par not in output_par_list:
+                if par not in conv_output_df.index:
+                    logging.warning(
+                        "Water balance parameter '%s' not found in output "
+                        "mapping — skipped.",
+                        par,
+                    )
+                    continue
+                output_par_list.append(par)
 
     # Cumulative parameters
     cum_par_list_all = conv_output_df_sel[
@@ -441,6 +472,7 @@ def prepare_output_and_rerun_lists(
     conv_output_table: "pd.DataFrame",
     conv_output: Dict[str, str],
     store_states: bool,
+    eval_waterbalance: bool = False,
 ) -> Tuple[
     List[str],  # out_par_list
     List[str],  # calc_par_list
@@ -462,6 +494,11 @@ def prepare_output_and_rerun_lists(
         DataFrame mapping 'parameter' → output flags & module settings.
     conv_output
         Dict mapping parameter names → Python variable names.
+    store_states : bool
+        If true, calculation parameters are added to the output list.
+    eval_waterbalance : bool, default False
+        If true, parameters required for water balance evaluation are added
+        to the output list.
 
     Returns
     -------
@@ -480,7 +517,7 @@ def prepare_output_and_rerun_lists(
     """
     # get the three lists from the conversion table
     out_par_list, calc_par_list, cum_par_list = check_output_files(
-        output_files, conv_output_table, mods, store_states
+        output_files, conv_output_table, mods, store_states, eval_waterbalance
     )
 
     # convert output parameters to variable names

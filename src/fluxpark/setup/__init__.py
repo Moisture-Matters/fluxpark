@@ -1,4 +1,5 @@
 from .core_initialization import (
+    WATERBALANCE_REQUIRED_PARAMS,
     check_output_files,
     detect_dynamic_landuse_and_years,
     parse_dates,
@@ -13,6 +14,7 @@ from .core_initialization import (
 )
 
 __all__ = [
+    "WATERBALANCE_REQUIRED_PARAMS",
     "check_output_files",
     "detect_dynamic_landuse_and_years",
     "parse_dates",

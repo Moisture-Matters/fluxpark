@@ -118,6 +118,11 @@ class FluxParkConfig:
          Policy for handling NaN values in rain or etref rasters. Options are
          "error", "allow", or "skip". If set to "skip", the current simulation
          day is skipped.
+     eval_waterbalance : bool, default=False
+         If True, evaluates the water balance after the simulation run. The required
+         output parameters are automatically added to the output list. The configuration
+         is serialized to the output directory so the evaluation can also be run
+         standalone afterwards via ``flp.postprocessing.eval_waterbalance(outdir)``.
     """
 
     # Positional (non-default) arguments
@@ -133,7 +138,7 @@ class FluxParkConfig:
 
     # Defaulted arguments
     impervious_runoff_fraction: Optional[float] = 0.85
-    
+
     mask: Optional[str] = None
     output_files: Union[str, list[str], list[int]] = "flagship"
     indir: Union[str, Path] = "./input_data"
@@ -170,3 +175,5 @@ class FluxParkConfig:
     intermediate_dir: Optional[Union[str, Path]] = None
 
     nan_policy: str = "error"
+
+    eval_waterbalance: bool = False
