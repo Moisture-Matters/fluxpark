@@ -196,7 +196,9 @@ def detect_dynamic_landuse_and_years(
     is_pwp = flp.utils.has_placeholders(root_soilm_pwp_filename)
 
     if is_luse and is_scp and is_pwp:
-        logging.info("Dynamic land use enabled: yearly map reload if available")
+        logging.info(
+            "Dynamic land use enabled: yearly map reload if available"
+        )
         dynamic = True
     elif is_luse or is_scp or is_pwp:
         raise RuntimeError(
@@ -206,7 +208,7 @@ def detect_dynamic_landuse_and_years(
             "are dynamic"
         )
     else:
-        logging.info("Run with static landuse map")
+        logging.info("Using static land use map")
         dynamic = False
 
     files = os.listdir(indir_rasters)
@@ -268,6 +270,7 @@ def resolve_dirs(
         Paths for output, input, rasters, and masks.
     """
     out_p = Path(outdir)
+    out_p.mkdir(parents=True, exist_ok=True)
     in_p = Path(indir)
     table_p = Path(indir_tables) if indir_tables else in_p / "tables"
     rasters_p = Path(indir_rasters) if indir_rasters else in_p / "rasters"

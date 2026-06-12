@@ -65,7 +65,7 @@ The core simulation is orchestrated by the **FluxParkRunner**, which handles set
 
 FluxPark uses a **ports and adapters** pattern to decouple data sources from the model core. The `RunnerPorts` dataclass defines all input and output connections; built‑in adapters are available under `flp.adapters`. You can also write your own adapters to supply meteorological data.
 
-### Example 1 — KNMI NetCDF files (built‑in adapter)
+### Example 1 - KNMI NetCDF files (built‑in adapter)
 
 Note that these NetCDF files can contain NaN values for open water; therefore `nan_policy` is set to `"allow"` to prevent the raster validation from raising an error.
 
@@ -81,11 +81,12 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="20250708_evap_parameters.xlsx",
+    evap_param_table="evap_parameters.xlsx",
     output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
     indir="./input_data",
-    outdir="./output_data"
-    nan_policy="allow")
+    outdir="./output_data",
+    nan_policy="allow",
+)
 
 runner_ports = flp.RunnerPorts(
     rain_provider=flp.adapters.make_knmi_netcdf_rain_provider(
@@ -100,7 +101,7 @@ runner = flp.FluxParkRunner(cfg, runner_ports=runner_ports)
 runner.run()
 ```
 
-### Example 2 — custom adapter
+### Example 2 - custom adapter
 
 You can supply any data source by writing a provider function that accepts the runner object and returns a 2D NumPy array. The runner object exposes `runner.date` (current date) and `runner.grid_params` (grid dimensions and projection).
 
@@ -117,10 +118,11 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="20250708_evap_parameters.xlsx",
+    evap_param_table="evap_parameters.xlsx",
     output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
     indir="./input_data",
-    outdir="./output_data")
+    outdir="./output_data",
+)
 
 def my_rain_provider(runner):
     # Return a constant rain grid of 3.0 mm/d
@@ -141,7 +143,7 @@ runner = flp.FluxParkRunner(cfg, runner_ports=runner_ports)
 runner.run()
 ```
 
-### Example 3 — water balance evaluation
+### Example 3 - water balance evaluation
 
 Setting `eval_waterbalance=True` in the configuration ensures that all required
 output parameters are automatically added to the output list. The model also
@@ -160,7 +162,7 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="20250708_evap_parameters.xlsx",
+    evap_param_table="evap_parameters.xlsx",
     indir="./input_data",
     outdir="./output_data",
     eval_waterbalance=True,
@@ -201,16 +203,23 @@ df = flp.postprocessing.rasters_to_timeseries(
 )
 ```
 
-To break down results by land-use class, supply a land-use map:
+To break down results by land-use class, supply a land-use map. Use
+`GeoTiffReader` with `read_and_reproject` to ensure the land-use raster aligns
+exactly with the model grid:
 
 ```python
 import fluxpark as flp
 import numpy as np
 import pandas as pd
-from osgeo import gdal
 
-ds = gdal.Open("./input_data/rasters/2021_luse_ids.tif")
-luse_map = ds.GetRasterBand(1).ReadAsArray().astype(np.int32)
+grid_params = {
+    "dst_epsg": 28992,
+    "bounds": (81000.0, 152000.0, 454000.0, 580000.0),
+    "cellsize": 100,
+}
+
+reader = flp.io.GeoTiffReader("./input_data/rasters/2021_luse_ids.tif", nodata_value=0)
+luse_map = reader.read_and_reproject(**grid_params).astype(np.int32)
 
 dates = pd.date_range("2021-01-01", "2021-12-31", freq="D")
 
