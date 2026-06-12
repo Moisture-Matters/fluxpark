@@ -196,10 +196,7 @@ def detect_dynamic_landuse_and_years(
     is_pwp = flp.utils.has_placeholders(root_soilm_pwp_filename)
 
     if is_luse and is_scp and is_pwp:
-        logging.info(
-            "Run default dynamic landuse simulations that could "
-            "change yearly if available"
-        )
+        logging.info("Dynamic land use enabled: yearly map reload if available")
         dynamic = True
     elif is_luse or is_scp or is_pwp:
         raise RuntimeError(

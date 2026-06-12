@@ -496,4 +496,5 @@ class FluxParkRunner:
         self._log_timing_summary(timings, total_time)
 
         if cfg.eval_waterbalance:
+            logger.info("start water balance evaluation")
             flp.postprocessing.eval_waterbalance(self.outdir)

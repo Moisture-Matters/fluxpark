@@ -100,7 +100,13 @@ def eval_waterbalance(
 
     cfg = flp.config.load_cfg(outdir)
     runner = flp.FluxParkRunner(cfg)
-    runner.setup()
+    root_logger = logging.getLogger()
+    prev_level = root_logger.level
+    root_logger.setLevel(logging.WARNING)
+    try:
+        runner.setup()
+    finally:
+        root_logger.setLevel(prev_level)
 
     all_dates = runner.dates
     dates = all_dates
