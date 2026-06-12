@@ -67,6 +67,8 @@ FluxPark uses a **ports and adapters** pattern to decouple data sources from the
 
 ### Example 1 — KNMI NetCDF files (built‑in adapter)
 
+Note that these NetCDF files can contain NaN values for open water; therefore `nan_policy` is set to `"allow"` to prevent the raster validation from raising an error.
+
 ```python
 import fluxpark as flp
 
@@ -82,7 +84,8 @@ cfg = flp.config.FluxParkConfig(
     evap_param_table="20250708_evap_parameters.xlsx",
     output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
     indir="./input_data",
-    outdir="./output_data")
+    outdir="./output_data"
+    nan_policy="allow")
 
 runner_ports = flp.RunnerPorts(
     rain_provider=flp.adapters.make_knmi_netcdf_rain_provider(
@@ -136,6 +139,87 @@ runner_ports = flp.RunnerPorts(
 
 runner = flp.FluxParkRunner(cfg, runner_ports=runner_ports)
 runner.run()
+```
+
+### Example 3 — water balance evaluation
+
+Setting `eval_waterbalance=True` in the configuration ensures that all required
+output parameters are automatically added to the output list. The model also
+writes the initial soil moisture state and serializes the configuration to the
+output directory at the start of every run.
+
+```python
+import fluxpark as flp
+
+cfg = flp.config.FluxParkConfig(
+    date_start="2021-01-01",
+    date_end="2021-12-31",
+    calc_epsg_code=28992,
+    x_min=81000.0,
+    x_max=152000.0,
+    y_min=454000.0,
+    y_max=580000.0,
+    cellsize=100,
+    evap_param_table="20250708_evap_parameters.xlsx",
+    indir="./input_data",
+    outdir="./output_data",
+    eval_waterbalance=True,
+)
+
+runner = flp.FluxParkRunner(cfg)
+runner.run()
+```
+
+The evaluation runs automatically at the end of the simulation and writes
+`waterbalance_eval.csv` to the output directory. The CSV contains the
+cumulative water balance components and the residual error per date and
+land-use class.
+
+**Running the evaluation standalone** on an existing output directory:
+
+```python
+import fluxpark as flp
+
+flp.postprocessing.eval_waterbalance("./output_data")
+```
+
+This requires `fluxpark_cfg.json` to be present in the output directory, which
+is written automatically to the output directory at the start of every run.
+
+**Converting output rasters to timeseries** without running the full evaluation:
+
+```python
+import fluxpark as flp
+import pandas as pd
+
+dates = pd.date_range("2021-01-01", "2021-12-31", freq="D")
+
+df = flp.postprocessing.rasters_to_timeseries(
+    outdir="./output_data",
+    parameters=["prec_cum_ytd_mm", "evap_total_act_cum_ytd_mm", "recharge_cum_ytd_mm"],
+    dates=dates,
+)
+```
+
+To break down results by land-use class, supply a land-use map:
+
+```python
+import fluxpark as flp
+import numpy as np
+import pandas as pd
+from osgeo import gdal
+
+ds = gdal.Open("./input_data/rasters/2021_luse_ids.tif")
+luse_map = ds.GetRasterBand(1).ReadAsArray().astype(np.int32)
+
+dates = pd.date_range("2021-01-01", "2021-12-31", freq="D")
+
+df = flp.postprocessing.rasters_to_timeseries(
+    outdir="./output_data",
+    parameters=["prec_cum_ytd_mm", "recharge_cum_ytd_mm"],
+    dates=dates,
+    luse_map=luse_map,
+)
 ```
 
 ## License
