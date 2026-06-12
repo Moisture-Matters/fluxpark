@@ -356,7 +356,9 @@ class FluxParkRunner:
             start_time_trans_calc = time.time()
             trans_pot = etref * trans_fact * soil_cov * (1.0 - int_timefrac)
 
-            old["smda"][old["smda"] > soilm_pwp] = soilm_pwp[old["smda"] > soilm_pwp]
+            valid = soilm_pwp != -9999
+            mask = valid & (old["smda"] > soilm_pwp)
+            old["smda"][mask] = soilm_pwp[mask]
 
             eta, smdp, smda, prec_surplus = unsat_reservoirmodel(
                 throughfall,
@@ -387,6 +389,13 @@ class FluxParkRunner:
                 prec_surplus,
                 cfg.open_water_ids,
             )
+            
+            # runoff for impervious area
+            runoff = prec_surplus * imperv * cfg.impervious_runoff_fraction
+            
+            # recharge
+            recharge = prec_surplus - runoff
+            
             daily_output.update(daily_output_update)
             daily_output.update(
                 {
@@ -396,6 +405,8 @@ class FluxParkRunner:
                     "int_store": int_store,
                     "sum_ep": sum_ep,
                     "sum_ea": sum_ea,
+                    "runoff": runoff,
+                    "recharge": recharge,
                 }
             )
 

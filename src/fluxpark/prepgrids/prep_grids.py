@@ -108,14 +108,18 @@ def load_fluxpark_raster_inputs(
     else:
         conv = 1.0
     reader = flp.io.GeoTiffReader(indir_rasters / soilm_scp_file, nodata_value=-9999)
-    soilm_scp = reader.read_and_reproject(**grid_params).astype(np.float32) * conv
+    soilm_scp_raw = reader.read_and_reproject(**grid_params).astype(np.float32)
+    soilm_scp = soilm_scp_raw * conv
+    soilm_scp[soilm_scp_raw == -9999] = -9999
 
     if "x10" in soilm_pwp_file.lower():
         conv = 0.1
     else:
         conv = 1.0
     reader = flp.io.GeoTiffReader(indir_rasters / soilm_pwp_file, nodata_value=-9999)
-    soilm_pwp = reader.read_and_reproject(**grid_params).astype(np.float32) * conv
+    soilm_pwp_raw = reader.read_and_reproject(**grid_params).astype(np.float32)
+    soilm_pwp = soilm_pwp_raw * conv
+    soilm_pwp[soilm_pwp_raw == -9999] = -9999
 
     # 0 should be treated as 0, not as no data. Therefore dummy nodata_value 255.
     reader = flp.io.GeoTiffReader(indir_rasters / imperv_file, nodata_value=0)

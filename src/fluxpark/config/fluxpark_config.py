@@ -33,7 +33,17 @@ class FluxParkConfig:
          Grid cell size (in map units) used for resampling input rasters.
      evap_param_table : str
          Filename of the Excel file containing evaporation parameters.
-    output_files : str or list[str], default="flagship"
+     impervious_runoff_fraction : float, default = 0.85
+         Fraction of the precipitation surplus that becomes surface runoff
+         for fully impervious surfaces (impervious density = 100). The runoff
+         fraction scales linearly with the impervious density, so a cell with
+         50% impervious density yields half this fraction as runoff. Used to
+         partition the precipitation surplus into surface runoff and groundwater
+         recharge based on the spatial impervious density raster. A value of
+         0.85 means that 15% of the surplus infiltrates even on fully impervious
+         surfaces, accounting for minor infiltration via gutters, drains and
+         road verges. Must be between 0 and 1.
+     output_files : str or list[str], default="flagship"
          Identifies the required output files, could be "all", "flagship" or a list of
          output parameters, e.g. ["prec_mm_d", "evap_total_act_mm_d"] or a list of
          output IDs, e.g. [1, 4, 8, 10]. Output IDs can be found in
@@ -122,6 +132,8 @@ class FluxParkConfig:
     evap_param_table: str
 
     # Defaulted arguments
+    impervious_runoff_fraction: Optional[float] = 0.85
+    
     mask: Optional[str] = None
     output_files: Union[str, list[str], list[int]] = "flagship"
     indir: Union[str, Path] = "./input_data"
