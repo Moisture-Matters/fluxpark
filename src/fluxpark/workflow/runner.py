@@ -7,13 +7,13 @@ import pandas as pd
 from numpy.typing import NDArray
 from osgeo import gdal
 
-gdal.UseExceptions()
-
 import fluxpark as flp
 from fluxpark.submodels.interception import interception_voortman
 from fluxpark.submodels.rootwateruptake import unsat_reservoirmodel
 from fluxpark.submodels.soilevaporation import soilevap_boestenstroosnijder
 from fluxpark.workflow import ports
+
+gdal.UseExceptions()
 
 logger = logging.getLogger(__name__)
 
