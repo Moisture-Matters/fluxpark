@@ -1,2 +1,8 @@
-# Auto detect text files and perform LF normalization
-* text=auto eol=lf
+# Normalize text files to LF in the repository, but let the working tree use
+# the native line ending (CRLF on Windows). This keeps the stored history clean
+# and cross-platform while not fighting Windows editors like Notepad.
+* text=auto
+
+# Pin files that must stay LF even on Windows (e.g. scripts run in the Linux
+# docker container). None needed yet; add here when introduced.
+# *.sh text eol=lf

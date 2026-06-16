@@ -4,6 +4,8 @@ from osgeo import gdal, osr
 import warnings
 import re
 
+from ..utils.common import to_gdal_path
+
 
 class GeoTiffReader:
     def __init__(self, source_path, band=1, nodata_value=float(-9999)):
@@ -66,7 +68,7 @@ class GeoTiffReader:
         np.ndarray
             Reprojected raster data as NumPy array.
         """
-        src_path_str = str(Path(self.source_path)).replace("\\", "/")
+        src_path_str = to_gdal_path(self.source_path)
         ds_in = gdal.Open(src_path_str, gdal.GA_ReadOnly)
 
         if fillnodata:
