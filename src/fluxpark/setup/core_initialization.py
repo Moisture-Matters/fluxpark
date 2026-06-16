@@ -288,15 +288,30 @@ def resolve_dirs(
     out_p, table_p, rasters_p, masks_p, intermediate_dir
         Output, tables, rasters and masks locations (Path for local, str for
         remote URLs), plus the optional intermediate dir.
+
+    Notes
+    -----
+    Masks are shared across versions and live at the line level. When `indir`
+    uses the "{input_version}" placeholder, the masks default therefore points
+    at the line root (the part of `indir` before the placeholder) + "masks",
+    e.g. ".../releases/nweu/masks", rather than inside the version folder. An
+    explicit `indir_masks` always takes precedence, and an `indir` without the
+    placeholder keeps the legacy "indir/masks" default.
     """
-    # Fill the {input_version} placeholder in indir if present.
+    # Determine the line root (part of indir before the placeholder) before we
+    # format it; masks live there, shared across versions.
     indir_str = str(indir)
-    if "{input_version}" in indir_str:
+    has_placeholder = "{input_version}" in indir_str
+    line_root = None
+
+    # Fill the {input_version} placeholder in indir if present.
+    if has_placeholder:
         if not input_version:
             raise RuntimeError(
                 "indir contains the '{input_version}' placeholder but "
                 "input_version was not provided in the configuration."
             )
+        line_root = indir_str.split("{input_version}")[0].rstrip("/\\")
         indir = indir_str.format(input_version=input_version)
 
     out_p = Path(outdir)
@@ -312,7 +327,20 @@ def resolve_dirs(
 
     table_p = _resolve(indir_tables, "tables")
     rasters_p = _resolve(indir_rasters, "rasters")
-    masks_p = _resolve(indir_masks, "masks")
+
+    # Masks default to the line root when a placeholder is used (shared across
+    # versions); otherwise to the legacy in_base/masks.
+    if indir_masks:
+        masks_p: Union[str, Path] = (
+            indir_masks if flp.utils.is_url(indir_masks) else Path(indir_masks)
+        )
+    elif line_root is not None:
+        masks_p = flp.utils.join_path_or_url(
+            line_root if flp.utils.is_url(line_root) else Path(line_root),
+            "masks",
+        )
+    else:
+        masks_p = flp.utils.join_path_or_url(in_base, "masks")
 
     if intermediate_dir:
         # Normalize to a Path

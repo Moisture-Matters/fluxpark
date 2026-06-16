@@ -11,7 +11,7 @@ FluxPark is an open‑source Python library that transforms daily meteorological
 FluxPark is developed and maintained by **[Moisture Matters](https://www.moisture-matters.nl)** 🌍. While the core model is freely available on GitHub and PyPI, regional inputs (maps, parameter tables) are delivered as part of our support contract. Your subscription helps fund ongoing maintenance and future enhancements.
 
 ### Enterprise & SaaS  
-For operational water management, FluxPark is integrated with satellite imagery, weather forecasts and field sensors in our digital‑twin platform **[StellaSpark Nexus](https://www.stellaspark.com/drought-monitoring)** 🌍—offered as a SaaS solution for real‑time monitoring and scenario analysis.
+For operational water management, FluxPark is integrated with satellite imagery, weather forecasts and field sensors in our digital‑twin platform **[StellaSpark Nexus](https://www.stellaspark.com/drought-early-warning-system)** 🌍—offered as a SaaS solution for real‑time monitoring and scenario analysis.
 
 <img src="docs/FluxPark_fluxes.png" width="600" alt="FluxPark evaporation & recharge workflow"/>
 
