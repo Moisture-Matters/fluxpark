@@ -43,6 +43,7 @@ class FluxParkRunner:
         self.context: Dict[str, Any] = {}
         self.initial_data: Dict[str, Any] = {}
         self.ancillary_rasters: Dict[str, Any] = {}
+        self.input_sources = None
 
         # daily runtime state
         self.current_input_rasters: Dict[str, Any] = {}
@@ -74,6 +75,11 @@ class FluxParkRunner:
             cfg.intermediate_dir,
             cfg.input_version,
         )
+
+        # input sources from the release (None for legacy folders without a
+        # release.yml)
+        resolved_indir, _ = flp.setup.resolve_indir(cfg.indir, cfg.input_version)
+        self.input_sources = flp.setup.load_input_sources(resolved_indir)
 
         # grid parameters
         self.grid_params = flp.setup.compute_grid_params(
@@ -140,6 +146,7 @@ class FluxParkRunner:
                 cfg.root_soilm_scp_rastername,
                 cfg.root_soilm_pwp_rastername,
                 self.indir_rasters,
+                self.input_sources,
             )
         )
 
@@ -188,6 +195,10 @@ class FluxParkRunner:
         old = self.old
 
         flp.config.save_cfg(cfg, self.outdir)
+
+        # provenance: record which release supplied each input file
+        if self.input_sources is not None:
+            self.input_sources.write_sources_snapshot(self.outdir)
 
         if cfg.eval_waterbalance:
             init_date = self.dates[0] - pd.Timedelta(days=1)

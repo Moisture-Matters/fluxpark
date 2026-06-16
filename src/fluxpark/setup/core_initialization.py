@@ -166,8 +166,45 @@ def check_output_files(
     return output_par_list, calc_par_list, cum_par_list
 
 
+def resolve_indir(
+    indir: Union[str, Path],
+    input_version: Optional[str] = None,
+) -> Tuple[Union[str, Path], Optional[str]]:
+    """Fill the "{input_version}" placeholder and derive the line root.
+
+    Parameters
+    ----------
+    indir
+        Base input directory: local path or HTTPS URL, optionally containing
+        an "{input_version}" placeholder.
+    input_version
+        Value to fill the placeholder. Required when the placeholder is
+        present; ignored otherwise.
+
+    Returns
+    -------
+    resolved_indir, line_root
+        The placeholder-filled `indir`, and the line root (the part before the
+        placeholder) or None when no placeholder was used.
+    """
+    indir_str = str(indir)
+    if "{input_version}" not in indir_str:
+        return indir, None
+    if not input_version:
+        raise RuntimeError(
+            "indir contains the '{input_version}' placeholder but "
+            "input_version was not provided in the configuration."
+        )
+    line_root = indir_str.split("{input_version}")[0].rstrip("/\\")
+    return indir_str.format(input_version=input_version), line_root
+
+
 def detect_dynamic_landuse_and_years(
-    landuse_filename, root_soilm_scp_filename, root_soilm_pwp_filename, indir_rasters
+    landuse_filename,
+    root_soilm_scp_filename,
+    root_soilm_pwp_filename,
+    indir_rasters,
+    input_sources=None,
 ):
     """
     Determine if input maps are dynamic and list available years.
@@ -181,15 +218,20 @@ def detect_dynamic_landuse_and_years(
     root_soilm_pwp_filename : str
         Filename pattern for soil moisture PWP maps.
     indir_rasters : Path or str
-        Directory containing input raster files.
+        Directory containing input raster files. Used to discover years only
+        when `input_sources` is None (legacy behavior).
+    input_sources : InputSources, optional
+        Resolved input sources. When given, the available years come from the
+        release (its ``release.yml`` chain) instead of listing `indir_rasters`,
+        which is required for remote inputs where directory listing is not
+        possible.
 
     Returns
     -------
     dynamic : bool
         True if all patterns include '{year}', False otherwise.
-    input_raster_years : ndarray of str
-        Sorted unique list of years for which 'luse_ids.tif' files
-        exist.
+    input_raster_years : ndarray
+        Sorted unique list of years for which land-use maps exist.
     """
     is_luse = flp.utils.has_placeholders(landuse_filename)
     is_scp = flp.utils.has_placeholders(root_soilm_scp_filename)
@@ -211,10 +253,13 @@ def detect_dynamic_landuse_and_years(
         logging.info("Using static land use map")
         dynamic = False
 
-    files = os.listdir(indir_rasters)
-    mask = ["luse_ids.tif" in f for f in files]
-    years = np.array([f.split("_")[0] for f in np.array(files)[mask]])
-    input_raster_years = np.sort(np.unique(years))
+    if input_sources is not None:
+        input_raster_years = np.array(sorted(input_sources.years))
+    else:
+        files = os.listdir(indir_rasters)
+        mask = ["luse_ids.tif" in f for f in files]
+        years = np.array([f.split("_")[0] for f in np.array(files)[mask]])
+        input_raster_years = np.sort(np.unique(years))
 
     return dynamic, input_raster_years
 

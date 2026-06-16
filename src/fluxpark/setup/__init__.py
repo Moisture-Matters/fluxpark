@@ -4,6 +4,7 @@ from .core_initialization import (
     detect_dynamic_landuse_and_years,
     parse_dates,
     resolve_dirs,
+    resolve_indir,
     compute_grid_params,
     load_evap_params,
     load_luse_evap_conv,
@@ -12,6 +13,12 @@ from .core_initialization import (
     init_old,
     read_static_maps,
 )
+from .input_sources import (
+    InputSources,
+    load_input_sources,
+    RELEASE_FILENAME,
+    SOURCES_SNAPSHOT_FILENAME,
+)
 
 __all__ = [
     "WATERBALANCE_REQUIRED_PARAMS",
@@ -19,6 +26,7 @@ __all__ = [
     "detect_dynamic_landuse_and_years",
     "parse_dates",
     "resolve_dirs",
+    "resolve_indir",
     "compute_grid_params",
     "load_evap_params",
     "load_luse_evap_conv",
@@ -26,4 +34,8 @@ __all__ = [
     "prepare_output_and_rerun_lists",
     "init_old",
     "read_static_maps",
+    "InputSources",
+    "load_input_sources",
+    "RELEASE_FILENAME",
+    "SOURCES_SNAPSHOT_FILENAME",
 ]
