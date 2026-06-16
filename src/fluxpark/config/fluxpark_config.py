@@ -49,7 +49,14 @@ class FluxParkConfig:
          output IDs, e.g. [1, 4, 8, 10]. Output IDs can be found in
          fluxpark_output_mapping.csv.
      indir : Union[str, Path], default='./input_data'
-         Root directory containing all input files.
+         Root directory containing all input files. May be a local path or an
+         HTTPS URL (e.g. a WebDAV server). Indir contain an
+         "{input_version}" placeholder that is filled with `input_version`,
+         e.g. "./releases/{input_version}".
+     input_version : Optional[str], default=None
+         Version label of the input data, used to fill the "{input_version}"
+         placeholder in `indir` (e.g. "2025.01.1__full"). Required when `indir`
+         contains the placeholder; ignored when it does not.
      indir_tables : Optional[Union[str, Path]], default=None
          Directory containing table input files. If None, defaults to `indir/tables`.
      indir_rasters : Optional[Union[str, Path]], default=None
@@ -142,6 +149,7 @@ class FluxParkConfig:
     mask: Optional[str] = None
     output_files: Union[str, list[str], list[int]] = "flagship"
     indir: Union[str, Path] = "./input_data"
+    input_version: Optional[str] = None
     indir_tables: Optional[Union[str, Path]] = None
     indir_rasters: Optional[Union[str, Path]] = None
     indir_masks: Optional[Union[str, Path]] = None

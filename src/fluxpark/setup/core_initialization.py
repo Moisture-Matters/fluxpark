@@ -247,34 +247,73 @@ def resolve_dirs(
     indir_rasters: Optional[Union[str, Path]] = None,
     indir_masks: Optional[Union[str, Path]] = None,
     intermediate_dir: Optional[Union[str, Path]] = None,
-) -> Tuple[Path, Path, Path, Path, Optional[Path]]:
+    input_version: Optional[str] = None,
+) -> Tuple[
+    Path,
+    Union[str, Path],
+    Union[str, Path],
+    Union[str, Path],
+    Optional[Path],
+]:
     """
     Normalize output/input directories and derive rasters/masks subdirs.
+
+    Fills the "{input_version}" placeholder in `indir` when present, and
+    supports both local paths and remote HTTPS URLs. For a local `indir` the
+    derived subdirectories are returned as :class:`pathlib.Path`; for a remote
+    `indir` they are returned as forward-slash joined URL strings (so they can
+    be opened by GDAL via ``/vsicurl/`` downstream).
 
     Parameters
     ----------
     outdir
-        Base output directory.
+        Base output directory (always local).
     indir
-        Base input directory.
+        Base input directory: a local path or an HTTPS URL. May contain an
+        "{input_version}" placeholder.
+    indir_tables
+        Optional override for the 'tables' subdirectory.
     indir_rasters
         Optional override for the 'rasters' subdirectory.
     indir_masks
         Optional override for the 'masks' subdirectory.
     intermediate_dir
-        Optional the dir to store intermediate output
+        Optional the dir to store intermediate output.
+    input_version
+        Value to fill the "{input_version}" placeholder in `indir`. Required
+        when the placeholder is present; ignored otherwise.
 
     Returns
     -------
-    out_p, in_p, rasters_p, masks_p
-        Paths for output, input, rasters, and masks.
+    out_p, table_p, rasters_p, masks_p, intermediate_dir
+        Output, tables, rasters and masks locations (Path for local, str for
+        remote URLs), plus the optional intermediate dir.
     """
+    # Fill the {input_version} placeholder in indir if present.
+    indir_str = str(indir)
+    if "{input_version}" in indir_str:
+        if not input_version:
+            raise RuntimeError(
+                "indir contains the '{input_version}' placeholder but "
+                "input_version was not provided in the configuration."
+            )
+        indir = indir_str.format(input_version=input_version)
+
     out_p = Path(outdir)
     out_p.mkdir(parents=True, exist_ok=True)
-    in_p = Path(indir)
-    table_p = Path(indir_tables) if indir_tables else in_p / "tables"
-    rasters_p = Path(indir_rasters) if indir_rasters else in_p / "rasters"
-    masks_p = Path(indir_masks) if indir_masks else in_p / "masks"
+
+    # Local base stays a Path; a remote base stays a URL string.
+    in_base = indir if flp.utils.is_url(indir) else Path(indir)
+
+    def _resolve(override, subdir):
+        if override:
+            return override if flp.utils.is_url(override) else Path(override)
+        return flp.utils.join_path_or_url(in_base, subdir)
+
+    table_p = _resolve(indir_tables, "tables")
+    rasters_p = _resolve(indir_rasters, "rasters")
+    masks_p = _resolve(indir_masks, "masks")
+
     if intermediate_dir:
         # Normalize to a Path
         intermediate_dir = Path(intermediate_dir)

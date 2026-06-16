@@ -72,6 +72,7 @@ class FluxParkRunner:
             cfg.indir_rasters,
             cfg.indir_masks,
             cfg.intermediate_dir,
+            cfg.input_version,
         )
 
         # grid parameters
