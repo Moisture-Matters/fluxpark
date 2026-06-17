@@ -10,24 +10,34 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    # Use a login shell so the conda environment is activated in every step.
+    defaults:
+      run:
+        shell: bash -el {0}
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up conda (Miniforge + mamba)
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          miniforge-version: latest
           python-version: '3.10'
+          activate-environment: fluxpark-ci
+          channels: conda-forge
+          channel-priority: strict
 
-      - name: Install dependencies
+      - name: Install dependencies (GDAL via conda, package via pip)
         run: |
-          python -m pip install --upgrade pip
-          pip install .
-          pip install pytest
-          pip install flake8>=7.0.0
+          mamba install -y gdal numpy pandas scipy openpyxl pyyaml \
+            pytest "flake8>=7.0.0"
+          pip install . --no-deps
 
-      - name: Check Flake8 version
-        run: flake8 --version
+      - name: Show versions
+        run: |
+          python -c "from osgeo import gdal; print('GDAL', gdal.__version__)"
+          flake8 --version
 
       - name: Lint with flake8
         run: |

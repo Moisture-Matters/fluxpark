@@ -4,10 +4,17 @@ import json
 import textwrap
 from pathlib import Path
 
-import numpy as np
-from osgeo import gdal, osr
+import pytest
 
-import fluxpark as flp
+# These tests exercise the FluxPark package, which imports GDAL (osgeo) on
+# import. GDAL is provided via conda, not via the pip requirements, so skip the
+# whole module when it is unavailable (e.g. the pip-only CI).
+pytest.importorskip("osgeo")
+
+import numpy as np  # noqa: E402
+from osgeo import gdal, osr  # noqa: E402
+
+import fluxpark as flp  # noqa: E402
 
 
 def _make_tif(path: Path, value: int) -> None:
