@@ -1,10 +1,32 @@
 from pathlib import Path
+import functools
 import numpy as np
 from osgeo import gdal, osr
 import warnings
 import re
 
 from ..utils.common import to_gdal_path
+
+
+def _quiet_gdal_warnings(func):
+    """Suppress GDAL warning *messages* for the duration of `func`.
+
+    NetCDF reading can emit a benign GDAL warning ("Recode from UTF-8 to
+    CP_ACP failed") when a file attribute contains non-ASCII text that the
+    Windows ANSI code page cannot represent. This silences such warnings only
+    while `func` runs; with ``gdal.UseExceptions()`` active, real errors still
+    raise. Scoped to the decorated reader, not the whole process.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        gdal.PushErrorHandler("CPLQuietErrorHandler")
+        try:
+            return func(*args, **kwargs)
+        finally:
+            gdal.PopErrorHandler()
+
+    return wrapper
 
 
 class GeoTiffReader:
@@ -146,6 +168,7 @@ class NetCDFReader:
         self.variable = variable
         self.nodata_value = nodata_value
 
+    @_quiet_gdal_warnings
     def read_and_reproject(
         self,
         dst_epsg,

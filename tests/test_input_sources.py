@@ -4,7 +4,24 @@ import json
 import textwrap
 from pathlib import Path
 
+import numpy as np
+from osgeo import gdal, osr
+
 import fluxpark as flp
+
+
+def _make_tif(path: Path, value: int) -> None:
+    """Write a tiny constant Int16 GeoTIFF in EPSG:3035."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ds = gdal.GetDriverByName("GTiff").Create(str(path), 4, 4, 1, gdal.GDT_Int16)
+    ds.SetGeoTransform((3900000, 100, 0, 3100000, 0, -100))
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(3035)
+    ds.SetProjection(srs.ExportToWkt())
+    band = ds.GetRasterBand(1)
+    band.SetNoDataValue(-9999)
+    band.WriteArray(np.full((4, 4), value, dtype=np.int16))
+    ds = None
 
 
 def _write(path: Path, text: str) -> None:
@@ -118,6 +135,173 @@ def test_sources_snapshot(tmp_path):
 
 def test_no_release_yml_returns_none(tmp_path):
     assert flp.setup.load_input_sources(tmp_path) is None
+
+
+def test_resolve_indir_placeholder():
+    resolved, line_root = flp.setup.resolve_indir(
+        r"C:/data/releases/nweu/{input_version}", "2026.06.0__full"
+    )
+    assert resolved == r"C:/data/releases/nweu/2026.06.0__full"
+    assert line_root == "C:/data/releases/nweu"
+
+
+def test_resolve_indir_direct_consistent():
+    # direct path + matching input_version -> allowed, no line root
+    resolved, line_root = flp.setup.resolve_indir(
+        r"C:/data/releases/nweu/2026.06.0__full", "2026.06.0__full"
+    )
+    assert str(resolved).endswith("2026.06.0__full")
+    assert line_root is None
+
+
+def test_resolve_indir_mismatch_raises():
+    try:
+        flp.setup.resolve_indir(
+            r"C:/data/releases/nweu/2026.06.0__full", "2026.10.1"
+        )
+    except RuntimeError as exc:
+        assert "input_version" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for indir/version mismatch")
+
+
+def test_resolve_indir_placeholder_without_version_raises():
+    try:
+        flp.setup.resolve_indir(r"C:/data/releases/nweu/{input_version}", None)
+    except RuntimeError as exc:
+        assert "placeholder" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for missing input_version")
+
+
+def test_table_path_by_name_alias(tmp_path):
+    line = _make_line(tmp_path)
+    src = flp.setup.load_input_sources(line / "2025.07.0")
+    # the evap_parameters alias resolves to the overriding release's filename
+    p = src.table_path_by_name("evap_parameters")
+    assert Path(p).name == "20260701_evap_parameters.xlsx"
+    assert "2025.07.0" in str(p)
+
+
+def test_table_path_by_name_unknown_raises(tmp_path):
+    line = _make_line(tmp_path)
+    src = flp.setup.load_input_sources(line / "2025.06.0__full")
+    try:
+        src.table_path_by_name("does_not_exist")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError("expected KeyError for unknown alias")
+
+
+def test_load_conv_output_unknown_mapping_raises(tmp_path):
+    line = _make_line(tmp_path)
+    src = flp.setup.load_input_sources(line / "2025.06.0__full")
+    # the release declares no 'nexus_output_mapping.csv' table
+    try:
+        flp.setup.load_conv_output(
+            line, "nexus_output_mapping.csv", src
+        )
+    except RuntimeError as exc:
+        assert "output_mapping" in str(exc)
+        assert "release" in str(exc).lower()
+    else:
+        raise AssertionError("expected RuntimeError for unknown output_mapping")
+
+
+def test_load_evap_params_requires_a_source(tmp_path):
+    # no release and no filename -> clear error
+    try:
+        flp.setup.load_evap_params(tmp_path, None, None)
+    except RuntimeError as exc:
+        assert "evap_param_table" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError when no source is given")
+
+
+def test_resolve_helpers_legacy_and_sources(tmp_path):
+    line = _make_line(tmp_path)
+    src = flp.setup.load_input_sources(line / "2025.07.0")
+
+    # legacy fallback: no input_sources -> joins onto the given dir
+    legacy = flp.setup.resolve_raster(None, Path(r"C:/data/rasters"), "x.tif")
+    assert legacy == Path(r"C:/data/rasters/x.tif")
+
+    # with input_sources: resolves through the chain (base raster)
+    p = flp.setup.resolve_raster(src, Path("ignored"), "2019_luse_ids.tif")
+    assert "2025.06.0__full" in str(p)
+    t = flp.setup.resolve_table(src, Path("ignored"), "20260701_evap_parameters.xlsx")
+    assert "2025.07.0" in str(t)
+
+
+def test_extends_override_is_physically_read(tmp_path):
+    line = tmp_path / "releases" / "nweu"
+    _make_tif(line / "2025.06.0__full" / "rasters" / "2019_luse_ids.tif", 10)
+    _make_tif(line / "2025.06.0__full" / "rasters" / "2020_luse_ids.tif", 10)
+    _write(
+        line / "2025.06.0__full" / "release.yml",
+        """
+        version: "2025.06.0__full"
+        line: "nweu"
+        rasters:
+          yearly:
+            years: [2019, 2020]
+            types:
+              - name: luse_ids
+                pattern: "{year}_luse_ids.tif"
+        """,
+    )
+    _make_tif(line / "2025.07.1__scn" / "rasters" / "2020_luse_ids.tif", 20)
+    _write(
+        line / "2025.07.1__scn" / "release.yml",
+        """
+        version: "2025.07.1__scn"
+        line: "nweu"
+        extends: "2025.06.0__full"
+        rasters:
+          yearly:
+            years: [2020]
+            types:
+              - name: luse_ids
+                pattern: "{year}_luse_ids.tif"
+        """,
+    )
+
+    src = flp.setup.load_input_sources(line / "2025.07.1__scn")
+    grid = dict(
+        dst_epsg=3035,
+        bounds=(3900000, 3900400, 3099600, 3100000),
+        cellsize=100,
+    )
+
+    # 2020 overridden by the scenario -> value 20
+    p2020 = flp.setup.resolve_raster(src, Path("ignored"), "2020_luse_ids.tif")
+    arr2020 = flp.io.GeoTiffReader(p2020, nodata_value=0).read_and_reproject(**grid)
+    assert int(np.round(arr2020.mean())) == 20
+
+    # 2019 inherited from the base -> value 10
+    p2019 = flp.setup.resolve_raster(src, Path("ignored"), "2019_luse_ids.tif")
+    arr2019 = flp.io.GeoTiffReader(p2019, nodata_value=0).read_and_reproject(**grid)
+    assert int(np.round(arr2019.mean())) == 10
+
+
+def test_masks_at_line_level_for_release_dir(tmp_path):
+    line = _make_line(tmp_path)
+    version_dir = line / "2025.06.0__full"  # direct path, no placeholder
+    out, tab, ras, msk, _ = flp.setup.resolve_dirs(
+        tmp_path / "_out", version_dir
+    )
+    # masks resolve to the line root (parent), not inside the version folder
+    assert Path(msk) == line / "masks"
+    assert Path(ras) == version_dir / "rasters"
+
+
+def test_masks_legacy_folder_without_release(tmp_path):
+    plain = tmp_path / "input_data"
+    (plain / "rasters").mkdir(parents=True)
+    out, tab, ras, msk, _ = flp.setup.resolve_dirs(tmp_path / "_out", plain)
+    # no release.yml -> legacy: masks inside the folder
+    assert Path(msk) == plain / "masks"
 
 
 def test_cross_line_extends_raises(tmp_path):

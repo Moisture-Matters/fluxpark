@@ -31,8 +31,6 @@ class FluxParkConfig:
          Maximum y-coordinate of the simulation extent.
      cellsize : float
          Grid cell size (in map units) used for resampling input rasters.
-     evap_param_table : str
-         Filename of the Excel file containing evaporation parameters.
      impervious_runoff_fraction : float, default = 0.85
          Fraction of the precipitation surplus that becomes surface runoff
          for fully impervious surfaces (impervious density = 100). The runoff
@@ -86,6 +84,12 @@ class FluxParkConfig:
          Filename of the coniferous forest cover raster.
      output_mapping : str, default="fluxpark_output_mapping.csv"
          Filename of the mapping table from variables to parameters.
+     evap_param_table : Optional[str], default=None
+         Filename of the Excel file containing evaporation parameters (legacy
+         method). Leave None when using a versioned release: the file is then
+         taken from the release's 'evap_parameters' table. Do not combine with a
+         release — if both are set the release wins and this value is ignored
+         (with a warning).
      bare_soil_ids : list[int], default = [15]
          Land use map ids that should be treated as bare soil giving it specific beta
          parameter value in the soil evaporation calculations.
@@ -141,7 +145,6 @@ class FluxParkConfig:
     y_min: float
     y_max: float
     cellsize: float
-    evap_param_table: str
 
     # Defaulted arguments
     impervious_runoff_fraction: Optional[float] = 0.85
@@ -161,6 +164,7 @@ class FluxParkConfig:
     soil_cov_decid_rastername: str = "forest_decid_soilcov_pct.tif"
     soil_cov_conif_rastername: str = "forest_conif_soilcov_pct.tif"
     output_mapping: str = "fluxpark_output_mapping.csv"
+    evap_param_table: Optional[str] = None
 
     bare_soil_ids: list[int] = field(default_factory=lambda: [15])
     open_water_ids: list[int] = field(default_factory=lambda: [16])

@@ -80,6 +80,16 @@ class FluxParkRunner:
         # release.yml)
         resolved_indir, _ = flp.setup.resolve_indir(cfg.indir, cfg.input_version)
         self.input_sources = flp.setup.load_input_sources(resolved_indir)
+        if self.input_sources is not None:
+            logger.info(
+                "Using input data version '%s' (line: %s)",
+                self.input_sources.version,
+                self.input_sources.line,
+            )
+        else:
+            logger.info(
+                "Using input data from indir folder, version unknown"
+            )
 
         # grid parameters
         self.grid_params = flp.setup.compute_grid_params(
@@ -97,11 +107,13 @@ class FluxParkRunner:
         self.evap_params = flp.setup.load_evap_params(
             self.indir_tables,
             cfg.evap_param_table,
+            self.input_sources,
         )
 
         # land-use / evaporation conversion
         self.luse_ids, self.evap_ids, self.luse_label = flp.setup.load_luse_evap_conv(
-            self.indir_tables
+            self.indir_tables,
+            self.input_sources,
         )
 
         # output conversion
@@ -109,6 +121,7 @@ class FluxParkRunner:
             flp.setup.load_conv_output(
                 self.indir_tables,
                 cfg.output_mapping,
+                self.input_sources,
             )
         )
 
@@ -157,6 +170,7 @@ class FluxParkRunner:
             self.mods,
             cfg.soil_cov_decid_rastername,
             cfg.soil_cov_conif_rastername,
+            self.input_sources,
         )
 
         # initial loop state
@@ -265,6 +279,7 @@ class FluxParkRunner:
                     luse_ids=self.luse_ids,
                     bare_soil_ids=cfg.bare_soil_ids,
                     urban_ids=cfg.urban_ids,
+                    input_sources=self.input_sources,
                 )
 
                 # Prevent NaN values in old["smda"] from propagating into new maps.

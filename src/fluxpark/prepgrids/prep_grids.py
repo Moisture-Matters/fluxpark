@@ -33,6 +33,7 @@ def load_fluxpark_raster_inputs(
     luse_ids,
     bare_soil_ids,
     urban_ids,
+    input_sources=None,
 ):
     """
     Load basic raster input files for a given date for the FluxPark model.
@@ -64,6 +65,9 @@ def load_fluxpark_raster_inputs(
         List of land use IDs that are bare and should get a lower beta param.
     urban_ids : list of int
         List of land use IDs that are urban and should be scaled using the imperv.
+    input_sources : InputSources, optional
+        Resolved input sources. When given, each raster is located through it
+        (honouring ``extends``); otherwise files are read from `indir_rasters`.
 
     Returns
     -------
@@ -100,14 +104,16 @@ def load_fluxpark_raster_inputs(
         soilm_pwp_file = root_soilm_pwp_filename
         imperv_file = impervdens_filename
 
-    reader = flp.io.GeoTiffReader(indir_rasters / landuse_file, nodata_value=0)
+    landuse_path = flp.setup.resolve_raster(input_sources, indir_rasters, landuse_file)
+    reader = flp.io.GeoTiffReader(landuse_path, nodata_value=0)
     landuse_map = reader.read_and_reproject(**grid_params)
 
     if "x10" in soilm_scp_file.lower():
         conv = 0.1
     else:
         conv = 1.0
-    reader = flp.io.GeoTiffReader(indir_rasters / soilm_scp_file, nodata_value=-9999)
+    scp_path = flp.setup.resolve_raster(input_sources, indir_rasters, soilm_scp_file)
+    reader = flp.io.GeoTiffReader(scp_path, nodata_value=-9999)
     soilm_scp_raw = reader.read_and_reproject(**grid_params).astype(np.float32)
     soilm_scp = soilm_scp_raw * conv
     soilm_scp[soilm_scp_raw == -9999] = -9999
@@ -116,13 +122,15 @@ def load_fluxpark_raster_inputs(
         conv = 0.1
     else:
         conv = 1.0
-    reader = flp.io.GeoTiffReader(indir_rasters / soilm_pwp_file, nodata_value=-9999)
+    pwp_path = flp.setup.resolve_raster(input_sources, indir_rasters, soilm_pwp_file)
+    reader = flp.io.GeoTiffReader(pwp_path, nodata_value=-9999)
     soilm_pwp_raw = reader.read_and_reproject(**grid_params).astype(np.float32)
     soilm_pwp = soilm_pwp_raw * conv
     soilm_pwp[soilm_pwp_raw == -9999] = -9999
 
     # 0 should be treated as 0, not as no data. Therefore dummy nodata_value 255.
-    reader = flp.io.GeoTiffReader(indir_rasters / imperv_file, nodata_value=0)
+    imperv_path = flp.setup.resolve_raster(input_sources, indir_rasters, imperv_file)
+    reader = flp.io.GeoTiffReader(imperv_path, nodata_value=0)
     imperv = reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
 
     # # Mask open water and sea

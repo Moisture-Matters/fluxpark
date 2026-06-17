@@ -16,6 +16,9 @@ from .core_initialization import (
 from .input_sources import (
     InputSources,
     load_input_sources,
+    resolve_raster,
+    resolve_table,
+    EVAP_PARAMS_TABLE_NAME,
     RELEASE_FILENAME,
     SOURCES_SNAPSHOT_FILENAME,
 )
@@ -36,6 +39,9 @@ __all__ = [
     "read_static_maps",
     "InputSources",
     "load_input_sources",
+    "resolve_raster",
+    "resolve_table",
+    "EVAP_PARAMS_TABLE_NAME",
     "RELEASE_FILENAME",
     "SOURCES_SNAPSHOT_FILENAME",
 ]

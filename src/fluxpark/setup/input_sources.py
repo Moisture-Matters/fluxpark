@@ -31,6 +31,9 @@ from ..utils.common import is_url, join_path_or_url, to_gdal_path
 RELEASE_FILENAME = "release.yml"
 SOURCES_SNAPSHOT_FILENAME = "fluxpark_input_sources.json"
 
+# Stable release-alias for the evaporation parameter table.
+EVAP_PARAMS_TABLE_NAME = "evap_parameters"
+
 # Guard against accidental infinite extends chains.
 _MAX_EXTENDS_DEPTH = 50
 
@@ -62,11 +65,16 @@ def _exists(path: PathLike) -> bool:
     return Path(path).exists()
 
 
-def _parent(path: PathLike) -> PathLike:
+def parent_dir(path: PathLike) -> PathLike:
     """Return the parent of a local path or a remote URL."""
     if is_url(path):
         return str(path).rstrip("/").rsplit("/", 1)[0]
     return Path(path).parent
+
+
+def is_release_dir(indir: PathLike) -> bool:
+    """Return True if `indir` contains a ``release.yml`` (is a release folder)."""
+    return _exists(join_path_or_url(indir, RELEASE_FILENAME))
 
 
 @dataclass
@@ -108,6 +116,24 @@ class InputSources:
             raise KeyError(f"Table '{filename}' is not declared in the release.")
         return join_path_or_url(directory, filename)
 
+    def table_filenames(self) -> List[str]:
+        """Sorted list of table filenames declared across the chain."""
+        return sorted(self._table_dir_by_file.keys())
+
+    def table_path_by_name(self, name: str) -> PathLike:
+        """Full path/URL of a table by its release alias (e.g. ``name`` key).
+
+        Unlike :meth:`table_path` (which takes the on-disk filename), this
+        resolves a table by the stable alias declared in ``release.yml`` (its
+        ``name``), so the actual filename may differ per release.
+        """
+        info = self._table_by_name.get(name)
+        if info is None:
+            raise KeyError(
+                f"The release does not declare a '{name}' table."
+            )
+        return join_path_or_url(info["dir"], info["file"])
+
     def write_sources_snapshot(self, outdir: PathLike) -> Path:
         """Write a provenance snapshot of which release supplied each file.
 
@@ -133,6 +159,36 @@ class InputSources:
         with open(out_path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
         return out_path
+
+
+def resolve_raster(
+    input_sources: Optional["InputSources"],
+    indir_rasters: PathLike,
+    filename: str,
+) -> PathLike:
+    """Resolve a raster filename to a path/URL.
+
+    Uses the resolved `input_sources` (honouring ``extends``) when available,
+    otherwise falls back to joining onto `indir_rasters` (legacy folders).
+    """
+    if input_sources is not None:
+        return input_sources.raster_path(filename)
+    return join_path_or_url(indir_rasters, filename)
+
+
+def resolve_table(
+    input_sources: Optional["InputSources"],
+    indir_tables: PathLike,
+    filename: str,
+) -> PathLike:
+    """Resolve a table filename to a path/URL.
+
+    Uses the resolved `input_sources` (honouring ``extends``) when available,
+    otherwise falls back to joining onto `indir_tables` (legacy folders).
+    """
+    if input_sources is not None:
+        return input_sources.table_path(filename)
+    return join_path_or_url(indir_tables, filename)
 
 
 def _load_chain(indir: PathLike) -> List[Dict[str, Any]]:
@@ -166,7 +222,7 @@ def _load_chain(indir: PathLike) -> List[Dict[str, Any]]:
         extends = parsed.get("extends")
         if not extends:
             break
-        current = join_path_or_url(_parent(current), extends)
+        current = join_path_or_url(parent_dir(current), extends)
 
     return chain
 

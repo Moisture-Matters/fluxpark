@@ -8,6 +8,14 @@ import fluxpark as flp
 import logging
 import os
 
+from .input_sources import (
+    EVAP_PARAMS_TABLE_NAME,
+    is_release_dir,
+    parent_dir,
+    resolve_raster,
+    resolve_table,
+)
+
 
 WATERBALANCE_REQUIRED_PARAMS = [
     "prec_cum_ytd_mm",
@@ -186,9 +194,29 @@ def resolve_indir(
     resolved_indir, line_root
         The placeholder-filled `indir`, and the line root (the part before the
         placeholder) or None when no placeholder was used.
+
+    Raises
+    ------
+    RuntimeError
+        If the placeholder is present but `input_version` is missing, or if
+        `input_version` is given while `indir` has no placeholder and points at
+        a different release (a likely mistake).
     """
     indir_str = str(indir)
     if "{input_version}" not in indir_str:
+        if input_version:
+            if flp.utils.is_url(indir):
+                last = indir_str.rstrip("/").rsplit("/", 1)[-1]
+            else:
+                last = Path(indir).name
+            if last != input_version:
+                raise RuntimeError(
+                    f"input_version='{input_version}' was given, but indir has "
+                    f"no '{{input_version}}' placeholder and points at "
+                    f"'{last}'. Either use the '{{input_version}}' placeholder "
+                    f"in indir, or make indir and input_version refer to the "
+                    f"same release."
+                )
         return indir, None
     if not input_version:
         raise RuntimeError(
@@ -336,28 +364,18 @@ def resolve_dirs(
 
     Notes
     -----
-    Masks are shared across versions and live at the line level. When `indir`
-    uses the "{input_version}" placeholder, the masks default therefore points
-    at the line root (the part of `indir` before the placeholder) + "masks",
-    e.g. ".../releases/nweu/masks", rather than inside the version folder. An
-    explicit `indir_masks` always takes precedence, and an `indir` without the
-    placeholder keeps the legacy "indir/masks" default.
+    Masks are shared across versions and live at the line level. Whenever
+    `indir` is a release folder (it uses the "{input_version}" placeholder, or
+    it directly points at a folder containing a ``release.yml``), the masks
+    default points at the line root (the parent of the version folder) +
+    "masks", e.g. ".../releases/nweu/masks", rather than inside the version
+    folder. An explicit `indir_masks` always takes precedence, and a plain
+    legacy folder without a ``release.yml`` keeps the "indir/masks" default.
     """
-    # Determine the line root (part of indir before the placeholder) before we
-    # format it; masks live there, shared across versions.
-    indir_str = str(indir)
-    has_placeholder = "{input_version}" in indir_str
-    line_root = None
-
-    # Fill the {input_version} placeholder in indir if present.
-    if has_placeholder:
-        if not input_version:
-            raise RuntimeError(
-                "indir contains the '{input_version}' placeholder but "
-                "input_version was not provided in the configuration."
-            )
-        line_root = indir_str.split("{input_version}")[0].rstrip("/\\")
-        indir = indir_str.format(input_version=input_version)
+    # Fill the {input_version} placeholder and derive the line root (masks live
+    # at the line level, shared across versions). Also validates indir vs
+    # input_version consistency.
+    indir, line_root = resolve_indir(indir, input_version)
 
     out_p = Path(outdir)
     out_p.mkdir(parents=True, exist_ok=True)
@@ -373,19 +391,23 @@ def resolve_dirs(
     table_p = _resolve(indir_tables, "tables")
     rasters_p = _resolve(indir_rasters, "rasters")
 
-    # Masks default to the line root when a placeholder is used (shared across
-    # versions); otherwise to the legacy in_base/masks.
+    # Masks live at the line level whenever indir is a release folder (either
+    # via the placeholder, or a direct path to a folder with a release.yml);
+    # otherwise the legacy in_base/masks is used.
     if indir_masks:
         masks_p: Union[str, Path] = (
             indir_masks if flp.utils.is_url(indir_masks) else Path(indir_masks)
         )
-    elif line_root is not None:
-        masks_p = flp.utils.join_path_or_url(
-            line_root if flp.utils.is_url(line_root) else Path(line_root),
-            "masks",
-        )
     else:
-        masks_p = flp.utils.join_path_or_url(in_base, "masks")
+        if line_root is not None:
+            masks_base: Union[str, Path] = (
+                line_root if flp.utils.is_url(line_root) else Path(line_root)
+            )
+        elif is_release_dir(indir):
+            masks_base = parent_dir(indir)
+        else:
+            masks_base = in_base
+        masks_p = flp.utils.join_path_or_url(masks_base, "masks")
 
     if intermediate_dir:
         # Normalize to a Path
@@ -484,23 +506,51 @@ def compute_grid_params(
     }
 
 
-def load_evap_params(indir: Path, evap_param_table: str) -> dict[str, np.ndarray]:
+def load_evap_params(
+    indir: Path, evap_param_table=None, input_sources=None
+) -> dict[str, np.ndarray]:
     """
     Load evaporation parameters per land use and day-of-year.
+
+    The two input methods must not be mixed. With a versioned release the table
+    comes from the release's ``evap_parameters`` alias; without a release a
+    filename must be given in `evap_param_table`.
 
     Parameters
     ----------
     indir : Path
-        Directory containing the Excel file.
-    evap_param_table : str
-        Filename of the evap params workbook.
+        Directory containing the Excel file (legacy method).
+    evap_param_table : str, optional
+        Filename of the evap params workbook (legacy method). Leave None when
+        using a release. If both a release and this filename are given, the
+        release wins and this value is ignored (with a warning).
+    input_sources : InputSources, optional
+        Resolved input sources; when given the table is taken from the
+        release's ``evap_parameters`` alias.
 
     Returns
     -------
     params : dict
         Keys are column names, values are NumPy arrays.
     """
-    path = indir / evap_param_table
+    if input_sources is not None:
+        if evap_param_table is not None:
+            logging.warning(
+                "Both a release and 'evap_param_table' are configured; these "
+                "methods must not be mixed. Using the release's "
+                "'%s' table and ignoring evap_param_table='%s'.",
+                EVAP_PARAMS_TABLE_NAME,
+                evap_param_table,
+            )
+        path = input_sources.table_path_by_name(EVAP_PARAMS_TABLE_NAME)
+    elif evap_param_table is not None:
+        path = resolve_table(None, indir, evap_param_table)
+    else:
+        raise RuntimeError(
+            "No evaporation parameter table available: provide "
+            "'evap_param_table' (legacy method) or use a versioned release "
+            "that declares an 'evap_parameters' table."
+        )
 
     # 1) get all sheet names
     xls = pd.ExcelFile(path)
@@ -526,7 +576,7 @@ def load_evap_params(indir: Path, evap_param_table: str) -> dict[str, np.ndarray
 
 
 def load_luse_evap_conv(
-    indir: Path,
+    indir: Path, input_sources=None
 ) -> tuple[NDArray[np.int_], NDArray[np.int_], NDArray[np.str_]]:
     """
     Read landuse→evap ID conversion table.
@@ -535,13 +585,16 @@ def load_luse_evap_conv(
     ----------
     indir : Path
         Directory containing 'conv_luse_evap_ids.csv'.
+    input_sources : InputSources, optional
+        Resolved input sources; when given the table is located through it
+        (honouring ``extends``) instead of `indir`.
 
     Returns
     -------
     luse_ids, evap_ids, labels : arrays
     """
     df = pd.read_csv(
-        indir / "conv_luse_evap_ids.csv",
+        resolve_table(input_sources, indir, "conv_luse_evap_ids.csv"),
         dtype={
             "luse_id": np.int64,
             "evap_id": np.int64,
@@ -554,6 +607,7 @@ def load_luse_evap_conv(
 def load_conv_output(
     indir: Path,
     output_mapping: str,
+    input_sources=None,
 ) -> tuple[pd.DataFrame, dict[str, str], dict[str, str]]:
     """
     Read conversion of model vars ↔ output filenames.
@@ -562,14 +616,33 @@ def load_conv_output(
     ----------
     indir : Path
         Directory containing 'fluxpark_output_mapping.csv'.
+    output_mapping : str
+        Filename of the output mapping CSV to use. This is a deliberate run
+        choice (e.g. 'fluxpark_output_mapping.csv' vs 'nexus_output_mapping.csv')
+        and stays config-driven also when a release is used.
+    input_sources : InputSources, optional
+        Resolved input sources; when given the chosen `output_mapping` is
+        located through it (honouring ``extends``) instead of `indir`.
 
     Returns
     -------
     conv_output, conv_var : dict
         param→var and var→param maps.
     """
+    if input_sources is not None:
+        try:
+            path = input_sources.table_path(output_mapping)
+        except KeyError:
+            raise RuntimeError(
+                f"Configured output_mapping '{output_mapping}' is not part of "
+                f"the input release. Set cfg.output_mapping to one of the "
+                f"tables the release provides: {input_sources.table_filenames()}."
+            )
+    else:
+        path = resolve_table(None, indir, output_mapping)
+
     df = pd.read_csv(
-        indir / output_mapping,
+        path,
         skiprows=list(np.arange(0, 10, 1)),
         index_col="parameter",
     )
@@ -683,6 +756,7 @@ def read_static_maps(
     mods: dict[str, bool],
     decid_filename: str,
     conif_filename: str,
+    input_sources=None,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Load static rasters: forest cover maps.
@@ -699,6 +773,9 @@ def read_static_maps(
         The coniferous forest soil cover file name
     decid_filename
         The decideous forest soil cover file name
+    input_sources : InputSources, optional
+        Resolved input sources; when given each raster is located through it
+        (honouring ``extends``) instead of `indir_rasters`.
 
     Returns
     -------
@@ -711,14 +788,16 @@ def read_static_maps(
     soil_cov_conif = None
     if mods.get("mod_vegcover", False):
         # Deciduous cover
-        reader = flp.io.GeoTiffReader(indir_rasters / decid_filename, nodata_value=0)
+        decid_path = resolve_raster(input_sources, indir_rasters, decid_filename)
+        reader = flp.io.GeoTiffReader(decid_path, nodata_value=0)
         soil_cov_decid = (
             reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
         )
         soil_cov_decid[soil_cov_decid == 0] = np.nan
 
         # Coniferous cover
-        reader = flp.io.GeoTiffReader(indir_rasters / conif_filename, nodata_value=0)
+        conif_path = resolve_raster(input_sources, indir_rasters, conif_filename)
+        reader = flp.io.GeoTiffReader(conif_path, nodata_value=0)
         soil_cov_conif = (
             reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
         )
