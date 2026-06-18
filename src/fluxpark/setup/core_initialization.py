@@ -1,8 +1,10 @@
 from pathlib import Path
 import math
+import tempfile
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
+from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, Any, List, Union, cast
 import fluxpark as flp
 import logging
@@ -10,7 +12,10 @@ import os
 
 from .input_sources import (
     EVAP_PARAMS_TABLE_NAME,
+    InputSources,
     is_release_dir,
+    load_input_sources,
+    localize_file,
     parent_dir,
     resolve_raster,
     resolve_table,
@@ -419,6 +424,76 @@ def resolve_dirs(
     return out_p, table_p, rasters_p, masks_p, intermediate_dir
 
 
+@dataclass
+class InputContext:
+    """Resolved input locations and the loaded release for a run.
+
+    When inputs are remote, `download_dir` points at a temporary directory
+    (owned by `_tmp`) into which remote tables/masks are downloaded; it is
+    removed automatically when this context is garbage-collected.
+    """
+
+    outdir: Path
+    tables: Union[str, Path]
+    rasters: Union[str, Path]
+    masks: Union[str, Path]
+    intermediate: Optional[Path]
+    input_sources: Optional[InputSources]
+    download_dir: Optional[str]
+    _tmp: Optional["tempfile.TemporaryDirectory"] = None
+
+
+def prepare_inputs(cfg) -> InputContext:
+    """Resolve all input locations and load the release for a run.
+
+    Combines directory resolution, release loading and (for remote inputs) a
+    temporary download directory into a single call, so the runner stays a
+    plain orchestrator. The returned context owns the temp dir; it is cleaned
+    up when the context is garbage-collected.
+
+    Parameters
+    ----------
+    cfg : FluxParkConfig
+        The run configuration.
+
+    Returns
+    -------
+    InputContext
+        Resolved locations, the loaded :class:`InputSources` (or None for a
+        legacy folder) and the optional download directory.
+    """
+    out_p, table_p, rasters_p, masks_p, intermediate = resolve_dirs(
+        cfg.outdir,
+        cfg.indir,
+        cfg.indir_tables,
+        cfg.indir_rasters,
+        cfg.indir_masks,
+        cfg.intermediate_dir,
+        cfg.input_version,
+    )
+    resolved_indir, _ = resolve_indir(cfg.indir, cfg.input_version)
+
+    # A temp download dir is only needed when tables/masks are remote.
+    tmp = None
+    download_dir = None
+    if flp.utils.is_url(table_p) or flp.utils.is_url(masks_p):
+        tmp = tempfile.TemporaryDirectory(prefix="fluxpark_input_")
+        download_dir = tmp.name
+
+    input_sources = load_input_sources(resolved_indir, download_dir=download_dir)
+
+    return InputContext(
+        outdir=out_p,
+        tables=table_p,
+        rasters=rasters_p,
+        masks=masks_p,
+        intermediate=intermediate,
+        input_sources=input_sources,
+        download_dir=download_dir,
+        _tmp=tmp,
+    )
+
+
 def compute_grid_params(
     x_min: float,
     x_max: float,
@@ -428,6 +503,7 @@ def compute_grid_params(
     epsg_code: int,
     indir_masks: Path,
     mask: Optional[str] = None,
+    download_dir=None,
 ) -> Dict[str, Any]:
     """
     Compute grid dimensions and package geospatial settings.
@@ -441,9 +517,14 @@ def compute_grid_params(
     epsg_code
         Output projection EPSG.
     indir_masks
-        Base masks directory.
+        Base masks directory (local path or remote URL).
     mask
-        Optional mask filename.
+        Optional mask filename. Local masks may be a shapefile (``.shp``) or a
+        single-file format. A remote mask must be single-file (e.g. GeoPackage
+        ``.gpkg``), because a shapefile's sibling files cannot be fetched as one
+        download.
+    download_dir
+        Directory to download a remote mask into before using it as a cutline.
 
     Returns
     -------
@@ -494,7 +575,19 @@ def compute_grid_params(
     ncols = int(round(x_range / cellsize))
     nrows = int(round(y_range / cellsize))
 
-    cutline = Path(indir_masks) / mask if mask else None
+    if mask:
+        mask_source = flp.utils.join_path_or_url(indir_masks, mask)
+        if flp.utils.is_url(mask_source) and str(mask).lower().endswith(".shp"):
+            raise RuntimeError(
+                "A remote mask must be a single-file format (e.g. GeoPackage "
+                "'.gpkg'); a shapefile needs sibling files (.shx/.dbf/...) that "
+                "cannot be fetched as a single download. Convert it first, e.g. "
+                "with scripts/convert_masks_to_gpkg.py. Local shapefiles are "
+                "still fine."
+            )
+        cutline = localize_file(mask_source, download_dir)
+    else:
+        cutline = None
 
     return {
         "dst_epsg": epsg_code,
@@ -526,7 +619,7 @@ def load_evap_params(
         release wins and this value is ignored (with a warning).
     input_sources : InputSources, optional
         Resolved input sources; when given the table is taken from the
-        release's ``evap_parameters`` alias.
+        release's ``evap_parameters`` alias (downloaded if remote).
 
     Returns
     -------
@@ -587,7 +680,7 @@ def load_luse_evap_conv(
         Directory containing 'conv_luse_evap_ids.csv'.
     input_sources : InputSources, optional
         Resolved input sources; when given the table is located through it
-        (honouring ``extends``) instead of `indir`.
+        (honouring ``extends``, downloaded if remote) instead of `indir`.
 
     Returns
     -------
@@ -622,7 +715,8 @@ def load_conv_output(
         and stays config-driven also when a release is used.
     input_sources : InputSources, optional
         Resolved input sources; when given the chosen `output_mapping` is
-        located through it (honouring ``extends``) instead of `indir`.
+        located through it (honouring ``extends``, downloaded if remote)
+        instead of `indir`.
 
     Returns
     -------

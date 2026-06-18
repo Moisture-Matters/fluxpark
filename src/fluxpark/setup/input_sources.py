@@ -40,8 +40,8 @@ _MAX_EXTENDS_DEPTH = 50
 PathLike = Union[str, Path]
 
 
-def _read_text(path: PathLike) -> str:
-    """Read a small text file from a local path or a remote URL."""
+def _read_bytes(path: PathLike) -> bytes:
+    """Read raw bytes from a local path or a remote URL."""
     if is_url(path):
         gdal_path = to_gdal_path(path)
         handle = gdal.VSIFOpenL(gdal_path, "rb")
@@ -53,9 +53,37 @@ def _read_text(path: PathLike) -> str:
             raw = gdal.VSIFReadL(1, size, handle) if size else b""
         finally:
             gdal.VSIFCloseL(handle)
-        return bytes(raw).decode("utf-8")
-    with open(path, encoding="utf-8") as handle:
+        return bytes(raw)
+    with open(path, "rb") as handle:
         return handle.read()
+
+
+def _read_text(path: PathLike) -> str:
+    """Read a small text file (UTF-8) from a local path or a remote URL."""
+    return _read_bytes(path).decode("utf-8")
+
+
+def localize_file(path: PathLike, dest_dir: Optional[PathLike]) -> Path:
+    """Return a local path for `path`, downloading it when it is a remote URL.
+
+    A local path is returned unchanged. A remote URL is downloaded into
+    `dest_dir` (required for URLs) and the resulting local path is returned.
+    Used for files that local tools cannot open over an authenticated HTTP
+    connection (pandas tables, an OGR cutline).
+    """
+    if not is_url(path):
+        return Path(path)
+    if dest_dir is None:
+        raise RuntimeError(
+            f"A download directory is required to read the remote file "
+            f"'{path}'."
+        )
+    dest = Path(dest_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+    filename = str(path).rstrip("/").rsplit("/", 1)[-1]
+    target = dest / filename
+    target.write_bytes(_read_bytes(path))
+    return target
 
 
 def _exists(path: PathLike) -> bool:
@@ -95,6 +123,8 @@ class InputSources:
     version: str
     line: Optional[str]
     years: List[int]
+    # directory to download remote tables into before they are read locally
+    download_dir: Optional[PathLike] = None
     # filename -> {"version": str, "dir": rasters-dir of that release}
     _raster_src: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     # table alias name -> {"version": str, "dir": tables-dir, "file": filename}
@@ -110,29 +140,32 @@ class InputSources:
         return join_path_or_url(info["dir"], filename)
 
     def table_path(self, filename: str) -> PathLike:
-        """Full path/URL of a table file, resolved through the chain."""
+        """Local path of a table file, downloading it when it is remote."""
         directory = self._table_dir_by_file.get(filename)
         if directory is None:
             raise KeyError(f"Table '{filename}' is not declared in the release.")
-        return join_path_or_url(directory, filename)
+        return localize_file(join_path_or_url(directory, filename), self.download_dir)
 
     def table_filenames(self) -> List[str]:
         """Sorted list of table filenames declared across the chain."""
         return sorted(self._table_dir_by_file.keys())
 
     def table_path_by_name(self, name: str) -> PathLike:
-        """Full path/URL of a table by its release alias (e.g. ``name`` key).
+        """Local path of a table by its release alias (its ``name`` key).
 
         Unlike :meth:`table_path` (which takes the on-disk filename), this
-        resolves a table by the stable alias declared in ``release.yml`` (its
-        ``name``), so the actual filename may differ per release.
+        resolves a table by the stable alias declared in ``release.yml``, so
+        the actual filename may differ per release. A remote table is
+        downloaded into ``download_dir`` and the local path is returned.
         """
         info = self._table_by_name.get(name)
         if info is None:
             raise KeyError(
                 f"The release does not declare a '{name}' table."
             )
-        return join_path_or_url(info["dir"], info["file"])
+        return localize_file(
+            join_path_or_url(info["dir"], info["file"]), self.download_dir
+        )
 
     def write_sources_snapshot(self, outdir: PathLike) -> Path:
         """Write a provenance snapshot of which release supplied each file.
@@ -227,13 +260,18 @@ def _load_chain(indir: PathLike) -> List[Dict[str, Any]]:
     return chain
 
 
-def load_input_sources(indir: PathLike) -> Optional[InputSources]:
+def load_input_sources(
+    indir: PathLike, download_dir: Optional[PathLike] = None
+) -> Optional[InputSources]:
     """Load and resolve the release in `indir`, following ``extends``.
 
     Parameters
     ----------
     indir
         The resolved release (version) folder: a local path or an HTTPS URL.
+    download_dir
+        Directory used to download remote tables into before reading them; not
+        needed for local releases.
 
     Returns
     -------
@@ -301,6 +339,7 @@ def load_input_sources(indir: PathLike) -> Optional[InputSources]:
         version=chain[0]["version"],
         line=line,
         years=sorted(years),
+        download_dir=download_dir,
         _raster_src=raster_src,
         _table_by_name=table_by_name,
         _table_dir_by_file=table_dir_by_file,

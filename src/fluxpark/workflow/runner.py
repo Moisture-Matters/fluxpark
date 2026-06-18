@@ -44,6 +44,8 @@ class FluxParkRunner:
         self.initial_data: Dict[str, Any] = {}
         self.ancillary_rasters: Dict[str, Any] = {}
         self.input_sources = None
+        # holds the resolved input context (and its temp download dir) alive
+        self._inputs = None
 
         # daily runtime state
         self.current_input_rasters: Dict[str, Any] = {}
@@ -59,27 +61,17 @@ class FluxParkRunner:
         # time information
         self.dates = flp.setup.parse_dates(cfg.date_start, cfg.date_end)
 
-        # directories
-        (
-            self.outdir,
-            self.indir_tables,
-            self.indir_rasters,
-            self.indir_masks,
-            self.intermediate_dir,
-        ) = flp.setup.resolve_dirs(
-            cfg.outdir,
-            cfg.indir,
-            cfg.indir_tables,
-            cfg.indir_rasters,
-            cfg.indir_masks,
-            cfg.intermediate_dir,
-            cfg.input_version,
-        )
+        # resolve input locations + load the release in one call; the context
+        # owns a temp download dir for remote inputs (cleaned up on GC).
+        inp = flp.setup.prepare_inputs(cfg)
+        self._inputs = inp
+        self.outdir = inp.outdir
+        self.indir_tables = inp.tables
+        self.indir_rasters = inp.rasters
+        self.indir_masks = inp.masks
+        self.intermediate_dir = inp.intermediate
+        self.input_sources = inp.input_sources
 
-        # input sources from the release (None for legacy folders without a
-        # release.yml)
-        resolved_indir, _ = flp.setup.resolve_indir(cfg.indir, cfg.input_version)
-        self.input_sources = flp.setup.load_input_sources(resolved_indir)
         if self.input_sources is not None:
             logger.info(
                 "Using input data version '%s' (line: %s)",
@@ -87,9 +79,7 @@ class FluxParkRunner:
                 self.input_sources.line,
             )
         else:
-            logger.info(
-                "Using input data from indir folder, version unknown"
-            )
+            logger.info("Using input data from indir folder, version unknown")
 
         # grid parameters
         self.grid_params = flp.setup.compute_grid_params(
@@ -101,6 +91,7 @@ class FluxParkRunner:
             cfg.calc_epsg_code,
             self.indir_masks,
             cfg.mask,
+            inp.download_dir,
         )
 
         # evaporation parameters
