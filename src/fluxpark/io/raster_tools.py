@@ -126,7 +126,10 @@ class GeoTiffReader:
             "format": "VRT",
             "dstNodata": self.nodata_value,
             "targetAlignedPixels": True,
-            "overviewLevel": 0,
+            # Use the base resolution, never a (e.g. average-built) overview:
+            # averaged overviews blend the -9999 nodata into valid cells near
+            # edges, corrupting soil maps around open water / nodata.
+            "overviewLevel": "NONE",
             "outputBounds": [x_min, y_min, x_max, y_max],
             "outputBoundsSRS": f"EPSG:{dst_epsg}",
         }
@@ -331,7 +334,8 @@ class NetCDFReader:
             "format": "MEM",
             "dstNodata": self.nodata_value,
             "targetAlignedPixels": True,
-            "overviewLevel": 0,
+            # Use the base resolution, never a (e.g. average-built) overview.
+            "overviewLevel": "NONE",
             "outputBounds": [x_min, y_min, x_max, y_max],
             "outputBoundsSRS": f"EPSG:{dst_epsg}",
         }
@@ -466,6 +470,12 @@ def write_geotiff(
 
     # Set creation options
     options = [f"COMPRESS={compress}"] if not is_mem else []
+
+    # GDAL 3.x is dramatically slower when Create() overwrites an existing
+    # GeoTIFF on disk (it opens/inspects the old file first). Remove a stale
+    # target so every write is a fresh create.
+    if uses_filename and not is_vsimem:
+        Path(out_path_str).unlink(missing_ok=True)
 
     # Create output dataset
     outdata = driver.Create(out_path_str, cols, rows, 1, dtype, options=options)
