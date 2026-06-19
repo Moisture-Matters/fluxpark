@@ -67,6 +67,7 @@ def rasters_to_timeseries(
     luse_map: Optional[np.ndarray] = None,
     luse_ids: Optional[np.ndarray] = None,
     luse_labels: Optional[np.ndarray] = None,
+    common_valid_mask: bool = False,
 ) -> pd.DataFrame:
     """Compute spatial-mean timeseries from FluxPark output rasters.
 
@@ -89,6 +90,12 @@ def rasters_to_timeseries(
     luse_labels:
         Human-readable labels for *luse_ids* (same length).  When provided
         a ``"luse_label"`` column is added to the result.
+    common_valid_mask:
+        If True, every parameter is averaged over only the cells that are valid
+        (non-nodata) in *all* parameters, so the means share one denominator.
+        A ``"valid_fraction"`` column reports the share of cells that were
+        evaluable. Used by the water balance evaluation so masked cells neither
+        bias the residual nor hide nodata coverage.
 
     Returns
     -------
@@ -122,13 +129,49 @@ def rasters_to_timeseries(
             else:
                 arrays[par] = None
 
+        # Cells valid (non-nodata) in every parameter, so all means share one
+        # denominator and the balance residual is honest.
+        common = None
+        if common_valid_mask:
+            present = [a for a in arrays.values() if a is not None]
+            if present:
+                common = np.ones(present[0].shape, dtype=bool)
+                for a in present:
+                    common &= ~np.isnan(a)
+
+        def _region_row(region_mask):
+            row: dict = {}
+            for par in parameters:
+                arr = arrays[par]
+                if arr is None:
+                    row[par] = np.nan
+                    continue
+                if common is not None:
+                    sel = common if region_mask is None else (region_mask & common)
+                else:
+                    sel = region_mask
+                row[par] = _spatial_mean(arr, sel)
+            if common_valid_mask:
+                if region_mask is None:
+                    n_total = common.size if common is not None else 0
+                    n_valid = int(common.sum()) if common is not None else 0
+                else:
+                    n_total = int(region_mask.sum())
+                    n_valid = (
+                        int((region_mask & common).sum())
+                        if common is not None
+                        else 0
+                    )
+                row["valid_fraction"] = (
+                    float(n_valid) / n_total if n_total else np.nan
+                )
+            return row
+
         # whole-area row
-        row: dict = {"date": date.date(), "luse_class": "all"}
+        row = {"date": date.date(), "luse_class": "all"}
         if label_map:
             row["luse_label"] = "all"
-        for par in parameters:
-            arr = arrays[par]
-            row[par] = _spatial_mean(arr) if arr is not None else np.nan
+        row.update(_region_row(None))
         rows.append(row)
 
         # per land-use class
@@ -137,14 +180,10 @@ def rasters_to_timeseries(
                 cls_mask = luse_map == cls
                 if not cls_mask.any():
                     continue
-                row_cls: dict = {"date": date.date(), "luse_class": int(cls)}
+                row_cls = {"date": date.date(), "luse_class": int(cls)}
                 if label_map:
                     row_cls["luse_label"] = label_map.get(int(cls), str(cls))
-                for par in parameters:
-                    arr = arrays[par]
-                    row_cls[par] = (
-                        _spatial_mean(arr, cls_mask) if arr is not None else np.nan
-                    )
+                row_cls.update(_region_row(cls_mask))
                 rows.append(row_cls)
 
     return pd.DataFrame(rows)

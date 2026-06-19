@@ -170,6 +170,7 @@ def eval_waterbalance(
             luse_map=luse_map,
             luse_ids=luse_ids_conv,
             luse_labels=luse_labels_conv,
+            common_valid_mask=True,
         )
         ts["year"] = year
         all_frames.append(ts)
@@ -252,6 +253,11 @@ def eval_waterbalance(
         output_csv = outdir / "waterbalance_eval.csv"
     output_csv = Path(output_csv)
     df.drop(columns=["year"], inplace=True)
+
+    # keep valid_fraction and balance_error_mm as the last two columns
+    tail = [c for c in ("valid_fraction", "balance_error_mm") if c in df.columns]
+    df = df[[c for c in df.columns if c not in tail] + tail]
+
     df.to_csv(output_csv, index=False, float_format="%.3f")
     logger.info("Water balance evaluation written to %s", output_csv)
 
