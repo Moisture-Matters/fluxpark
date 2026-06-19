@@ -45,7 +45,7 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
     smdp : ndarray
         Potential soil moisture deficit [L].
     smda : ndarray
-        Updated soil moisture deficit [L].
+        Updated soil moisture deficit [L], bounded to be non-negative.
     drainage : ndarray
         Drainage out of the unsaturated zone [L per day].
     """
@@ -94,4 +94,11 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
         smd_old[cond_no_drain] - rain[cond_no_drain] + eta[cond_no_drain]
     )
 
+    # Keep the deficit non-negative (a soil cannot be wetter than field
+    # capacity). Done here, moved from post-processing, so the state carried
+    # to the next timestep is already bounded.
+    smda = np.maximum(smda, 0.0)
+
+    # Pixels without valid soil parameters (nodata) produce meaningless values
+    # here; they are masked in post-processing, not handled in the model.
     return eta, smdp, smda, drainage

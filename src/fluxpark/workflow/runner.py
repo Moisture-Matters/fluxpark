@@ -395,9 +395,12 @@ class FluxParkRunner:
             start_time_trans_calc = time.time()
             trans_pot = etref * trans_fact * soil_cov * (1.0 - int_timefrac)
 
-            valid = soilm_pwp != -9999
-            mask = valid & (old["smda"] > soilm_pwp)
-            old["smda"][mask] = soilm_pwp[mask]
+            # Clamp carried-over deficit to the (possibly new) wilting point.
+            # pwp depends on root depth (land use), so old state from a previous
+            # land use may exceed the current pwp; this must be checked here,
+            # not in the reservoir model.
+            over_pwp = old["smda"] > soilm_pwp
+            old["smda"][over_pwp] = soilm_pwp[over_pwp]
 
             # open water evaporation
             open_water_evap_act = openwater_fact * etref
@@ -425,11 +428,13 @@ class FluxParkRunner:
                 open_water_evap_act,
                 smda,
                 soilm_pwp,
+                soilm_scp,
                 rain,
                 etref,
                 landuse_map,
                 prec_surplus,
                 cfg.open_water_ids,
+                cfg.mask_open_water,
             )
 
             # runoff for impervious area

@@ -96,7 +96,7 @@ def _read_netcdf_to_grid(
 
     return ncfile.read_and_reproject(
         **read_grid_params,
-        **{"resample_alg": resample_alg},
+        resample_alg=resample_alg,
     )
 
 

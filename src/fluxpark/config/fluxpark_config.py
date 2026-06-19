@@ -97,6 +97,11 @@ class FluxParkConfig:
          To make output raster maps more nice, the output from the usaturated zone model
          will get nan for landuse ids that have open water. Make it None if you don't
          want anny masking.
+     mask_open_water : bool, default = True
+         If True, the reservoir outputs over `open_water_ids` are set to nodata
+         (NaN). If False, the precipitation surplus over open water is kept
+         (prec_surplus = rain) instead of masked. Either way, open-water
+         evaporation still contributes to evap_total there.
      urban_ids : list[int], default = [18]
          Land use map ids that should be treated as urban area allowing the impervious
          density to have effect on calculations.
@@ -168,6 +173,7 @@ class FluxParkConfig:
 
     bare_soil_ids: list[int] = field(default_factory=lambda: [15])
     open_water_ids: list[int] = field(default_factory=lambda: [16])
+    mask_open_water: bool = True
     urban_ids: list[int] = field(default_factory=lambda: [18, 21])
     write_nan_for_landuse_ids: list[int] = field(default_factory=lambda: [0, 17])
     replace_nan_with_zero: bool = False

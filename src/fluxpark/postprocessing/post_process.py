@@ -12,11 +12,13 @@ def post_process_daily(
     open_water_evap_act,
     smda,
     soilm_pwp,
+    soilm_scp,
     rain,
     etref,
     landuse_map,
     prec_surplus,
     open_water_ids,
+    mask_open_water=True,
 ):
     """
     Compute actual fluxes, mask invalid areas, and derive water balances.
@@ -39,6 +41,9 @@ def post_process_daily(
         Soil moisture deficit actual (mm).
     soilm_pwp : ndarray
         Permanent wilting point moisture (mm).
+    soilm_scp : ndarray
+        Stomatal closure point moisture (mm). Used together with `soilm_pwp` to
+        detect pixels without valid soil parameters (nodata).
     rain : ndarray
         Precipitation (mm).
     etref : ndarray
@@ -49,6 +54,9 @@ def post_process_daily(
         Precipitation surplus (mm).
     open_water_ids : list[int]
         Reservoir output get nan for these landuse ids, if None no masking
+    mask_open_water : bool, default True
+        If True, mask the reservoir outputs over open water to nodata. If False,
+        keep the precipitation surplus over open water (prec_surplus = rain).
 
     Returns
     -------
@@ -76,42 +84,53 @@ def post_process_daily(
     trans_act = eta * frac
     soil_evap_act = eta - trans_act
 
-    # 3. Masks for open water
-    if open_water_ids:
-        mask_open = np.isin(landuse_map, open_water_ids)
-
-        # 4. all output from the reservoir model is masked for open water and sea.
-        # if you don't mask the prec_surplus will be equal with precipitation for open
-        # water and other variables will have a 0 (not nan)
-        for arr in (
-            eta,
-            int_evap,
-            trans_pot,
-            trans_act,
-            soil_evap_pot,
-            soil_evap_act_est,
-            soil_evap_act,
-            prec_surplus,
-            smda,
-        ):
-            arr[mask_open] = np.nan
-
-    # calculate transpiration deficit
+    # transpiration deficit (before masking)
     trans_def = trans_pot - trans_act
+    soilm_root = soilm_pwp - smda
 
-    # 5. non-negative soil moisture deficit
-    smda = np.where((smda < 0) & (smda != -9999), 0.0, smda)
+    # 2. Pixels without a valid soil reservoir: open water (by land use) and
+    # soil data gaps (either soil parameter is nodata).
+    if open_water_ids:
+        open_water = np.isin(landuse_map, open_water_ids)
+    else:
+        open_water = np.zeros(landuse_map.shape, dtype=bool)
+    soil_nodata = (soilm_pwp == -9999) | (soilm_scp == -9999)
+    no_reservoir = open_water | soil_nodata
 
-    # 6. Total evaporation
+    # 3. Soil/land fluxes are undefined without a soil reservoir -> nodata (NaN).
+    for arr in (
+        eta,
+        int_evap,
+        trans_pot,
+        trans_act,
+        soil_evap_pot,
+        soil_evap_act_est,
+        soil_evap_act,
+        trans_def,
+        smda,
+        soilm_root,
+    ):
+        arr[no_reservoir] = np.nan
+
+    # 4. Precipitation surplus: nodata where there is no reservoir, but keep the
+    # precipitation as surplus over open water when not masking it.
+    prec_surplus[no_reservoir] = np.nan
+    if not mask_open_water:
+        prec_surplus[open_water] = rain[open_water]
+
+    # 5. Total evaporation. nansum keeps the open-water evaporation over open
+    # water even though the soil fluxes are NaN there; a real land pixel without
+    # soil parameters (data gap) is fully nodata.
     evap_total_pot = np.nansum(
         [soil_evap_act_est, trans_pot, int_evap, open_water_evap_act], axis=0
     )
     evap_total_act = np.nansum(
         [soil_evap_act, trans_act, int_evap, open_water_evap_act], axis=0
     )
+    data_gap = soil_nodata & ~open_water
+    evap_total_pot[data_gap] = np.nan
+    evap_total_act[data_gap] = np.nan
 
-    # 7. Rootzone moisture and precipitation deficit
-    soilm_root = soilm_pwp - smda
     prec_def_knmi = (rain - etref) * -1.0
 
     return {
