@@ -21,6 +21,8 @@ from .input_sources import (
     resolve_table,
 )
 
+logger = logging.getLogger(__name__)
+
 
 WATERBALANCE_REQUIRED_PARAMS = [
     "prec_cum_ytd_mm",
@@ -136,7 +138,7 @@ def check_output_files(
         ]
 
         if len(output_par_list) != len(converted):
-            logging.warning(
+            logger.warning(
                 "Some output_files do not match the active modules and were ignored."
             )
 
@@ -157,7 +159,7 @@ def check_output_files(
         for par in WATERBALANCE_REQUIRED_PARAMS:
             if par not in output_par_list:
                 if par not in conv_output_df.index:
-                    logging.warning(
+                    logger.warning(
                         "Water balance parameter '%s' not found in output "
                         "mapping — skipped.",
                         par,
@@ -271,7 +273,7 @@ def detect_dynamic_landuse_and_years(
     is_pwp = flp.utils.has_placeholders(root_soilm_pwp_filename)
 
     if is_luse and is_scp and is_pwp:
-        logging.info(
+        logger.info(
             "Dynamic land use enabled: yearly map reload if available"
         )
         dynamic = True
@@ -283,7 +285,7 @@ def detect_dynamic_landuse_and_years(
             "are dynamic"
         )
     else:
-        logging.info("Using static land use map")
+        logger.info("Using static land use map")
         dynamic = False
 
     if input_sources is not None:
@@ -628,7 +630,7 @@ def load_evap_params(
     """
     if input_sources is not None:
         if evap_param_table is not None:
-            logging.warning(
+            logger.warning(
                 "Both a release and 'evap_param_table' are configured; these "
                 "methods must not be mixed. Using the release's "
                 "'%s' table and ignoring evap_param_table='%s'.",

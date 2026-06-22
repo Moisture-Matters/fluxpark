@@ -3,45 +3,7 @@ import logging
 import pkgutil
 from importlib.metadata import version, PackageNotFoundError
 
-try:
-    __version__ = version(__name__)
-except PackageNotFoundError:
-    __version__ = "0.0.0"  # for development
-
-def setup_logging(level: int = logging.INFO) -> None:
-    """Configure console logging for FluxPark.
-
-    Called automatically on import.  Call again to change the log level::
-
-        flp.setup_logging(logging.DEBUG)
-
-    Parameters
-    ----------
-    level:
-        Logging level, e.g. ``logging.DEBUG`` or ``logging.WARNING``.
-        Defaults to ``logging.INFO``.
-    """
-    pkg_logger = logging.getLogger(__name__)
-    pkg_logger.setLevel(level)
-    pkg_logger.propagate = False
-    # replace existing StreamHandler if present (e.g. level change); keep
-    # non-StreamHandler handlers (file handlers added by the caller).
-    pkg_logger.handlers = [
-        h for h in pkg_logger.handlers
-        if not isinstance(h, logging.StreamHandler)
-    ]
-    handler = logging.StreamHandler()
-    handler.setLevel(level)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    )
-    pkg_logger.addHandler(handler)
-
-
-setup_logging()
-
-
-# import all modules dynamically
+from ._logging import setup_logging
 from . import config
 from . import setup
 from . import io
@@ -52,6 +14,16 @@ from . import utils
 from . import workflow
 from .workflow import adapters
 from .workflow import FluxParkRunner, RunnerPorts
+
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:
+    __version__ = "0.0.0"  # for development
+
+# Standard library guidance: a library attaches a NullHandler and configures
+# nothing else.  Interactive users call flp.setup_logging() for console output;
+# embedding applications configure logging themselves.
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 __all__ = [
     "config",
@@ -64,6 +36,7 @@ __all__ = [
     "adapters",
     "FluxParkRunner",
     "RunnerPorts",
+    "setup_logging",
 ]
 
 for loader, module_name, is_pkg in pkgutil.iter_modules(submodels.__path__):

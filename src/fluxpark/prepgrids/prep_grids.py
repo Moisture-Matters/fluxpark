@@ -5,6 +5,8 @@ from typing import Optional, TypedDict
 import logging
 import bisect
 
+logger = logging.getLogger(__name__)
+
 _EXT2DRIVER = {
     ".gpkg": "GPKG",
     ".shp": "ESRI Shapefile",
@@ -89,10 +91,10 @@ def load_fluxpark_raster_inputs(
         idx = bisect.bisect_right(raster_years, year) - 1
         if idx < 0:
             year = raster_years[0]
-            logging.info(f"Dyn. luse, year is earlier than the inputfiles. Use: {year}")
+            logger.info(f"Dyn. luse, year is earlier than the inputfiles. Use: {year}")
         else:
             year = raster_years[idx]
-            logging.info(f"Dynamic land use, select file with year: {year}")
+            logger.info(f"Dynamic land use, select file with year: {year}")
 
         landuse_file = landuse_filename.format(year=year)
         soilm_scp_file = root_soilm_scp_filename.format(year=year)
@@ -152,9 +154,9 @@ def load_fluxpark_raster_inputs(
     # Warn for unexpected land use codes
     for code in np.unique(landuse_map):
         if code not in luse_ids and code != 0:
-            logging.warning(f"Land use code {code} not in luse-evap conversion table.")
+            logger.warning(f"Land use code {code} not in luse-evap conversion table.")
 
-    logging.info("Read basic FluxPark input maps")
+    logger.info("Read basic FluxPark input maps")
 
     return landuse_map, soilm_scp, soilm_pwp, imperv, beta
 

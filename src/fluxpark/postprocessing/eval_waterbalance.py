@@ -100,13 +100,14 @@ def eval_waterbalance(
 
     cfg = flp.config.load_cfg(outdir)
     runner = flp.FluxParkRunner(cfg)
-    root_logger = logging.getLogger()
-    prev_level = root_logger.level
-    root_logger.setLevel(logging.WARNING)
+    # silence the setup chatter without touching the host's root logger
+    flp_logger = logging.getLogger("fluxpark")
+    prev_level = flp_logger.level
+    flp_logger.setLevel(logging.WARNING)
     try:
         runner.setup()
     finally:
-        root_logger.setLevel(prev_level)
+        flp_logger.setLevel(prev_level)
 
     all_dates = runner.dates
     dates = all_dates

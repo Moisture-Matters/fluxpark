@@ -5,6 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 from osgeo import gdal
 
+logger = logging.getLogger(__name__)
+
 
 def write_output_tif(
     variable,
@@ -146,7 +148,7 @@ def write_all_tiffs(
         filename = f"{date_str}-{par}.tif"
         var = conv_output[par]
         if var not in daily_output.keys() and var not in cum_output.keys():
-            logging.warning(f"{var} not in the output dicts")
+            logger.warning(f"{var} not in the output dicts")
         array = cum_output[var] if var.endswith("_c") else daily_output[var]
         tasks.append((array, filename))
 
