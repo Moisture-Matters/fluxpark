@@ -1,5 +1,6 @@
 import importlib.metadata
 
+
 def test_package_has_version():
     """Smoke‐test: fluxpark is installed and has a version string in metadata."""
     # This reads the version from the installed distribution metadata,
@@ -7,4 +8,3 @@ def test_package_has_version():
     version = importlib.metadata.version("fluxpark")
     assert isinstance(version, str)
     assert version != ""
-

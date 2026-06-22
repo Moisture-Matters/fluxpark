@@ -311,6 +311,29 @@ def test_masks_legacy_folder_without_release(tmp_path):
     assert Path(msk) == plain / "masks"
 
 
+def test_local_shapefile_mask_is_allowed(tmp_path):
+    # a local .shp mask passes through unchanged (no download)
+    gp = flp.setup.compute_grid_params(
+        x_min=0.0, x_max=1000.0, y_min=0.0, y_max=1000.0,
+        cellsize=100, epsg_code=28992,
+        indir_masks=tmp_path / "masks", mask="NL.shp",
+    )
+    assert Path(gp["cutline_path"]) == tmp_path / "masks" / "NL.shp"
+
+
+def test_remote_shapefile_mask_raises():
+    try:
+        flp.setup.compute_grid_params(
+            x_min=0.0, x_max=1000.0, y_min=0.0, y_max=1000.0,
+            cellsize=100, epsg_code=28992,
+            indir_masks="https://host/releases/nweu/masks", mask="NL.shp",
+        )
+    except RuntimeError as exc:
+        assert "single-file" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for a remote .shp mask")
+
+
 def test_cross_line_extends_raises(tmp_path):
     line = _make_line(tmp_path)
     _write(
