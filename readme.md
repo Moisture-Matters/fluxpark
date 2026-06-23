@@ -65,6 +65,19 @@ The core simulation is orchestrated by the **FluxParkRunner**, which handles set
 
 FluxPark uses a **ports and adapters** pattern to decouple data sources from the model core. The `RunnerPorts` dataclass defines all input and output connections; built‑in adapters are available under `flp.adapters`. You can also write your own adapters to supply meteorological data.
 
+### Input data — versioned releases
+
+FluxPark input data is organised as **versioned releases**: a release folder described by a `release.yml`, grouped under a *line*. Point `indir` at a line with an `{input_version}` placeholder and set `input_version` to the release:
+
+```python
+indir = "./releases/nweu/{input_version}"
+input_version = "2025.06.0__full"
+```
+
+The evaporation parameter table and the other inputs are then taken from the release automatically. See **[docs/input_data_releases.md](docs/input_data_releases.md)** for the full folder structure and conventions.
+
+A plain `indir` folder without the placeholder also works (the legacy method); in that case pass the evaporation parameters explicitly via `evap_param_table="evap_parameters.xlsx"`.
+
 ### Example 1 - KNMI NetCDF files (built‑in adapter)
 
 Note that these NetCDF files can contain NaN values for open water; therefore `nan_policy` is set to `"allow"` to prevent the raster validation from raising an error.
@@ -81,9 +94,9 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="evap_parameters.xlsx",
     output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
-    indir="./input_data",
+    indir="./releases/nweu/{input_version}",
+    input_version="2025.06.0__full",
     outdir="./output_data",
     nan_policy="allow",
 )
@@ -118,9 +131,9 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="evap_parameters.xlsx",
     output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
-    indir="./input_data",
+    indir="./releases/nweu/{input_version}",
+    input_version="2025.06.0__full",
     outdir="./output_data",
 )
 
@@ -162,8 +175,8 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="evap_parameters.xlsx",
-    indir="./input_data",
+    indir="./releases/nweu/{input_version}",
+    input_version="2025.06.0__full",
     outdir="./output_data",
     eval_waterbalance=True,
 )

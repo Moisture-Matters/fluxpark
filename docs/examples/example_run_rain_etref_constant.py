@@ -18,20 +18,23 @@ cfg = flp.config.FluxParkConfig(
     y_min=454000.0,
     y_max=580000.0,
     cellsize=100,
-    evap_param_table="20250708_evap_parameters.xlsx",
     output_files=["prec_surplus_mm_d", "evap_total_act_mm_d"],
-    indir="./input_data",
+    indir="./releases/nweu/{input_version}",
+    input_version="2025.06.0__full",
     outdir="./output_data")
+
 
 # define rain as constant (3.0 mm/d)
 def my_rain_provider(runner):
     shape = (runner.grid_params["nrows"], runner.grid_params["ncols"])
     return np.full(shape, 3.0, dtype="float32")
 
+
 # define etref as constant (1.0 mm/d)
 def my_etref_provider(runner):
     shape = (runner.grid_params["nrows"], runner.grid_params["ncols"])
     return np.full(shape, 1.0, dtype="float32")
+
 
 # run the model
 runner_ports = flp.RunnerPorts(
