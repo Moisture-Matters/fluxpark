@@ -44,6 +44,7 @@ class FluxParkRunner:
         self.initial_data: Dict[str, Any] = {}
         self.ancillary_rasters: Dict[str, Any] = {}
         self.input_sources = None
+        self.provenance: Dict[str, str] = {}
         # holds the resolved input context (and its temp download dir) alive
         self._inputs = None
 
@@ -72,14 +73,23 @@ class FluxParkRunner:
         self.intermediate_dir = inp.intermediate
         self.input_sources = inp.input_sources
 
+        # Provenance stamped into every output GeoTIFF so a file's origin can
+        # always be traced back to package and input-data versions.
+        self.provenance = flp.setup.build_provenance(
+            self.input_sources, cfg.input_version, flp.__version__
+        )
+        version = self.provenance["FLUXPARK_INPUT_VERSION"]
         if self.input_sources is not None:
             logger.info(
                 "Using input data version '%s' (line: %s)",
-                self.input_sources.version,
+                version,
                 self.input_sources.line,
             )
         else:
-            logger.info("Using input data from indir folder, version unknown")
+            logger.info(
+                "Using input data from indir folder, version '%s'",
+                version,
+            )
 
         # grid parameters
         self.grid_params = flp.setup.compute_grid_params(
@@ -217,6 +227,7 @@ class FluxParkRunner:
                 False,
                 self.outdir,
                 cfg.x_min, cfg.y_max, cfg.cellsize, cfg.calc_epsg_code,
+                metadata=self.provenance,
             )
 
         total_start = time.time()
@@ -501,6 +512,7 @@ class FluxParkRunner:
                 cfg.only_yearly_output,
                 cfg.parallel,
                 cfg.max_workers,
+                self.provenance,
             )
             tot_time_writing += time.time() - start_time_writing
 

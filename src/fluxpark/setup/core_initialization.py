@@ -68,7 +68,7 @@ def check_output_files(
     Returns
     -------
     output_par_list : list of str
-        List of Nexus parameters to write as output.
+        List of parameters to write as output.
     calc_par_list : list of str
         Parameters required for internal calculations.
     cum_par_list : list of str
@@ -713,8 +713,8 @@ def load_conv_output(
         Directory containing 'fluxpark_output_mapping.csv'.
     output_mapping : str
         Filename of the output mapping CSV to use. This is a deliberate run
-        choice (e.g. 'fluxpark_output_mapping.csv' vs 'nexus_output_mapping.csv')
-        and stays config-driven also when a release is used.
+        choice (e.g. an alternative 'custom_output_mapping.csv') and stays
+        config-driven also when a release is used.
     input_sources : InputSources, optional
         Resolved input sources; when given the chosen `output_mapping` is
         located through it (honouring ``extends``, downloaded if remote)

@@ -20,6 +20,7 @@ def write_output_tif(
     cellsize,
     epsg_code,
     dtype=gdal.GDT_Float32,
+    metadata=None,
 ):
     """
     Write a single variable array as GeoTIFF, applying masks and scaling.
@@ -48,6 +49,8 @@ def write_output_tif(
         EPSG code for projection (e.g. 28992).
     dtype : int, optional
         GDAL data type constant (default: GDT_Float32).
+    metadata : dict, optional
+        Provenance key/value pairs written into the GeoTIFF.
     """
     # convert soil_cov fraction to percent
     if "soil_cov" in filename:
@@ -77,6 +80,7 @@ def write_output_tif(
         epsg_code,
         nodata_value=-9999,
         dtype=dtype,
+        metadata=metadata,
     )
 
 
@@ -97,6 +101,7 @@ def write_all_tiffs(
     only_yearly_output=False,
     parallel=False,
     max_workers=None,
+    metadata=None,
 ):
     """
     Write all requested parameters as GeoTIFFs for a given date.
@@ -133,6 +138,8 @@ def write_all_tiffs(
         Use threaded output (default: False).
     max_workers : int, optional
         the amount of parallel workers, by default it will be derived from your machine
+    metadata : dict, optional
+        Provenance key/value pairs written into every GeoTIFF.
     """
     date_str = date.strftime("%Y%m%d")
     dtype = gdal.GDT_Float32
@@ -167,6 +174,7 @@ def write_all_tiffs(
             cellsize,
             epsg_code,
             dtype,
+            metadata,
         )
 
     if parallel:

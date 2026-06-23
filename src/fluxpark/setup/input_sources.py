@@ -20,6 +20,7 @@ the combined input sources for a run. It can be serialized to
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -222,6 +223,45 @@ def resolve_table(
     if input_sources is not None:
         return input_sources.table_path(filename)
     return join_path_or_url(indir_tables, filename)
+
+
+def resolve_input_version(
+    input_sources: Optional["InputSources"],
+    input_version: Optional[str],
+) -> str:
+    """Return the effective input-data version label for provenance.
+
+    A release's ``release.yml`` is authoritative; otherwise the explicitly
+    configured ``input_version`` is used; if neither is known the result is
+    ``"unknown"``.
+    """
+    if input_sources is not None and input_sources.version:
+        return input_sources.version
+    if input_version:
+        return input_version
+    return "unknown"
+
+
+def build_provenance(
+    input_sources: Optional["InputSources"],
+    input_version: Optional[str],
+    package_version: str,
+) -> Dict[str, str]:
+    """Build the provenance tags stamped into output GeoTIFFs.
+
+    Returns the ``FLUXPARK_*`` key/value pairs (package version, resolved
+    input-data version and a UTC creation timestamp) that travel inside every
+    output file for traceability.
+    """
+    return {
+        "FLUXPARK_VERSION": package_version,
+        "FLUXPARK_INPUT_VERSION": resolve_input_version(
+            input_sources, input_version
+        ),
+        "FLUXPARK_CREATED": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"
+        ),
+    }
 
 
 def _load_chain(indir: PathLike) -> List[Dict[str, Any]]:

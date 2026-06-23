@@ -383,6 +383,7 @@ def write_geotiff(
     nodata_value=float(-9999),
     dtype=gdal.GDT_Float32,
     compress="LZW",
+    metadata=None,
 ):
     """
     Write a 2D NumPy array to a GeoTIFF, MEM, or VSIMEM raster.
@@ -410,6 +411,9 @@ def write_geotiff(
         GDAL data type (e.g., gdal.GDT_Float32).
     compress : str, optional
         Compression type (default "LZW").
+    metadata : dict, optional
+        Key/value pairs written as GeoTIFF dataset metadata (the GDAL_METADATA
+        tag, visible in ``gdalinfo``). Ignored for in-memory (MEM) output.
 
     Returns
     -------
@@ -491,6 +495,10 @@ def write_geotiff(
     # Write data
     outdata.GetRasterBand(1).WriteArray(out_array)
     outdata.GetRasterBand(1).SetNoDataValue(nodata_value)
+
+    # Provenance metadata (skipped for pure in-memory datasets)
+    if metadata and not is_mem:
+        outdata.SetMetadata({k: str(v) for k, v in metadata.items()})
 
     if is_vsimem and outdata is not None and out_filename == "":
         warnings.warn(
