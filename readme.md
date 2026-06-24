@@ -30,14 +30,14 @@ The simplest approach is to run:
 conda install -c conda-forge gdal
 ```
 
-- GDAL >= 3.2
+- GDAL >= 3.3.2
 - Python >= 3.9
 
 If you have difficulty getting GDAL and FluxPark set up, we provide a ready‑made conda environment file:
-1. Download `fluxpark_env.yml` from the `docs/` folder.  
+1. Download `flp_environment.yml` from the `docs/` folder.  
 2. In your terminal, navigate to its directory and run:
 ```bash
-conda env create -f fluxpark_env.yml
+conda env create -f flp_environment.yml
 ```
 3. Activate it
 ```bash
@@ -61,11 +61,11 @@ It also needs three tables:
 
 A unique feature of FluxPark is that all evaporation parameters can be *scaled* by soil cover, enabling higher‑resolution, spatially explicit simulations.
 
-The core simulation is orchestrated by the **FluxParkRunner**, which handles setup and time‑stepping. Users configure the model via the **FluxParkConfig** class—inspect its docstring to explore all available options.
+The core simulation is orchestrated by the **FluxParkRunner**, which handles setup and time‑stepping. Users configure the model via the **FluxParkConfig** class. Inspect its docstring to explore all available options.
 
-FluxPark uses a **ports and adapters** pattern to decouple data sources from the model core. The `RunnerPorts` dataclass defines all input and output connections; built‑in adapters are available under `flp.adapters`. You can also write your own adapters to supply meteorological data.
+FluxPark uses a **ports and adapters** pattern to decouple data sources from the model core. The `RunnerPorts` dataclass defines all input and output connections; built‑in adapters are available under `flp.adapters`. You can also write your own adapters to supply e.g. meteorological data.
 
-### Input data — versioned releases
+### Input data - versioned releases
 
 FluxPark input data is organised as **versioned releases**: a release folder described by a `release.yml`, grouped under a *line*. Point `indir` at a line with an `{input_version}` placeholder and set `input_version` to the release:
 

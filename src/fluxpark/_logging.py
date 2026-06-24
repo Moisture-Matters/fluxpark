@@ -2,13 +2,18 @@
 
 Following the standard library guidance for libraries, importing FluxPark
 attaches only a :class:`logging.NullHandler` (done in ``__init__``) and
-configures nothing else.  Applications that embed FluxPark should configure
-logging themselves.
+configures nothing else at import time.
 
-Interactive users running FluxPark from a script or an IDE such as Spyder or
-VS Code can call :func:`setup_logging` once to route FluxPark's messages to
-the console.  This is needed because those IDEs pre-configure the root logger,
-which otherwise filters out FluxPark's ``INFO`` output.
+So a run still produces visible output by default, :class:`FluxParkRunner`
+calls :func:`ensure_logging` at the start of ``setup``: it sets up a console
+handler only when logging has not been configured yet. Users who want to
+control output call :func:`setup_logging` (e.g. to change the level); an
+embedding application that configures the ``fluxpark`` logger itself is left
+untouched.
+
+This is handled on the ``fluxpark`` logger directly because IDEs such as
+Spyder and VS Code pre-configure the root logger, which would otherwise filter
+out FluxPark's ``INFO`` output.
 """
 
 import logging
@@ -61,3 +66,35 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
     )
     logger.addHandler(handler)
     return logger
+
+
+def _is_configured(logger: logging.Logger) -> bool:
+    """True when the logger has a real (non-Null) handler of its own."""
+    return any(
+        not isinstance(h, logging.NullHandler) for h in logger.handlers
+    )
+
+
+def ensure_logging(level: int = logging.INFO) -> None:
+    """Set up default console logging unless it is already configured.
+
+    Called by :class:`FluxParkRunner` so a run produces visible output by
+    default, even when the user did not call :func:`setup_logging`. It is a
+    no-op when the ``fluxpark`` logger already has a non-Null handler — i.e.
+    the user called :func:`setup_logging` or an embedding application
+    configured the logger — so an explicit configuration is never overridden.
+
+    Only the ``fluxpark`` logger is inspected, not the root logger: IDEs such
+    as Spyder pre-configure the root logger at ``WARNING`` level, which must
+    not count as "already configured" or FluxPark's ``INFO`` output would stay
+    hidden.
+
+    Parameters
+    ----------
+    level:
+        Logging level used when no configuration is present yet. Defaults to
+        ``logging.INFO``.
+    """
+    if _is_configured(logging.getLogger(LOGGER_NAME)):
+        return
+    setup_logging(level)

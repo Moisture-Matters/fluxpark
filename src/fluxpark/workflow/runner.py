@@ -54,6 +54,9 @@ class FluxParkRunner:
 
     def setup(self) -> None:
         """Prepare static data and initial model state."""
+        # show FluxPark log output by default; respects an explicit
+        # setup_logging() call or a host-configured 'fluxpark' logger.
+        flp.ensure_logging()
         cfg = self.cfg
 
         # runtime/environment-specific context

@@ -37,3 +37,31 @@ def test_repeated_calls_do_not_stack_handlers():
     assert names.count(_CONSOLE_HANDLER_NAME) == 1
     # propagate disabled so IDE root handlers cannot filter or duplicate output
     assert logger.propagate is False
+
+
+def _reset_fluxpark_logger():
+    """Drop everything except the NullHandler, mimicking a fresh import."""
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.handlers = [
+        h for h in logger.handlers if isinstance(h, logging.NullHandler)
+    ]
+    logger.propagate = True
+    return logger
+
+
+def test_ensure_logging_configures_when_unset():
+    logger = _reset_fluxpark_logger()
+    flp.ensure_logging()
+    names = [h.get_name() for h in logger.handlers]
+    assert names.count(_CONSOLE_HANDLER_NAME) == 1
+
+
+def test_ensure_logging_does_not_override_existing_config():
+    logger = _reset_fluxpark_logger()
+    own = logging.StreamHandler()
+    own.set_name("user_handler")
+    logger.addHandler(own)
+    flp.ensure_logging()
+    names = [h.get_name() for h in logger.handlers]
+    assert _CONSOLE_HANDLER_NAME not in names   # ours was not added
+    assert "user_handler" in names              # user's handler kept

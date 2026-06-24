@@ -3,7 +3,7 @@ import logging
 import pkgutil
 from importlib.metadata import version, PackageNotFoundError
 
-from ._logging import setup_logging
+from ._logging import setup_logging, ensure_logging
 from . import config
 from . import setup
 from . import io
@@ -37,6 +37,7 @@ __all__ = [
     "FluxParkRunner",
     "RunnerPorts",
     "setup_logging",
+    "ensure_logging",
 ]
 
 for loader, module_name, is_pkg in pkgutil.iter_modules(submodels.__path__):
