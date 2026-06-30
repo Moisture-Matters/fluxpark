@@ -883,24 +883,26 @@ def read_static_maps(
     soil_cov_decid = None
     soil_cov_conif = None
     if mods.get("mod_vegcover", False):
+        # Forest cover is read with NaN nodata (the warp honours the source's
+        # own 0/255 nodata). "No forest" cells come back as NaN directly, so the
+        # mod_vegcover scaling (guarded by ~isnan) falls back to the table
+        # default there; a genuine 0% cover, if present, stays 0 (data).
         # Deciduous cover
         decid_path = resolve_raster(input_sources, indir_rasters, decid_filename)
-        reader = flp.io.GeoTiffReader(decid_path, nodata_value=0)
+        reader = flp.io.GeoTiffReader(decid_path, dst_nodata=np.nan)
         soil_cov_decid = (
             reader.read_and_reproject(
                 **grid_params, resample_alg="average"
-                ).astype(np.float32) / 100.0
+            ) / 100.0
         )
-        soil_cov_decid[soil_cov_decid == 0] = np.nan
 
         # Coniferous cover
         conif_path = resolve_raster(input_sources, indir_rasters, conif_filename)
-        reader = flp.io.GeoTiffReader(conif_path, nodata_value=0)
+        reader = flp.io.GeoTiffReader(conif_path, dst_nodata=np.nan)
         soil_cov_conif = (
             reader.read_and_reproject(
                 **grid_params, resample_alg="average"
-                ).astype(np.float32) / 100.0
+            ) / 100.0
         )
-        soil_cov_conif[soil_cov_conif == 0] = np.nan
 
     return soil_cov_decid, soil_cov_conif

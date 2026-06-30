@@ -78,6 +78,8 @@ The evaporation parameter table and the other inputs are then taken from the rel
 
 A plain `indir` folder without the placeholder also works (the legacy method); in that case pass the evaporation parameters explicitly via `evap_param_table="evap_parameters.xlsx"`.
 
+Each input is resampled by type (land use by mode, soil moisture by median, imperviousness and forest cover by average) and nodata is normalised to `NaN` internally. See **[docs/nodata_and_resampling.md](docs/nodata_and_resampling.md)** for the per‑parameter resampling and nodata rules, and how the output is masked (`mask_open_water`, `write_nan_for_landuse_ids`, `replace_nan_with_zero`).
+
 ### Example 1 - KNMI NetCDF files (built‑in adapter)
 
 Note that these NetCDF files can contain NaN values for open water; therefore `nan_policy` is set to `"allow"` to prevent the raster validation from raising an error.

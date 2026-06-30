@@ -30,7 +30,7 @@ def _quiet_gdal_warnings(func):
 
 
 class GeoTiffReader:
-    def __init__(self, source_path, band=1, nodata_value=float(-9999)):
+    def __init__(self, source_path, band=1, dst_nodata=float(-9999)):
         """
         Initialize the reader.
 
@@ -40,12 +40,14 @@ class GeoTiffReader:
             Path to the source GeoTIFF.
         band : int, optional
             Band number to read (1-based index). Default is 1.
-        nodata_value : float, optional
-            Value to use for NoData pixels. Default is -9999.
+        dst_nodata : float, optional
+            NoData value of the RETURNED array (the warp destination), not the
+            source's -- the warp honours the source band's nodata separately.
+            Pass ``np.nan`` to get NaN nodata. Default is -9999.
         """
         self.source_path = source_path
         self.band = band
-        self.nodata_value = nodata_value
+        self.dst_nodata = dst_nodata
 
     def read_and_reproject(
         self,
@@ -128,21 +130,29 @@ class GeoTiffReader:
         x_min, x_max, y_min, y_max = bounds
 
         # Warp (reproject + resample)
+        nodata_is_nan = isinstance(self.dst_nodata, float) and np.isnan(
+            self.dst_nodata
+        )
         warp_opts = {
             "dstSRS": f"EPSG:{dst_epsg}",
             "resampleAlg": resample_alg,
             "xRes": cellsize,
             "yRes": -cellsize,
             "format": "VRT",
-            "dstNodata": self.nodata_value,
+            "dstNodata": self.dst_nodata,
             "targetAlignedPixels": True,
             # Use the base resolution, never a (e.g. average-built) overview:
-            # averaged overviews blend the -9999 nodata into valid cells near
-            # edges, corrupting soil maps around open water / nodata.
+            # averaged overviews blend the nodata into valid cells near edges,
+            # corrupting soil maps around open water / nodata.
             "overviewLevel": "NONE",
             "outputBounds": [x_min, y_min, x_max, y_max],
             "outputBoundsSRS": f"EPSG:{dst_epsg}",
         }
+
+        if nodata_is_nan:
+            # NaN cannot live in a Byte/Int band: warp to Float32 so nodata
+            # comes back as NaN (no sentinel, so no collision with a valid 0).
+            warp_opts["outputType"] = gdal.GDT_Float32
 
         if source_extra > 0:
             warp_opts["warpOptions"] = [f"SOURCE_EXTRA={source_extra}"]
@@ -167,7 +177,7 @@ class GeoTiffReader:
             )
 
         arr = ds_warp.GetRasterBand(self.band).ReadAsArray().astype(np.float32)
-        arr[np.isnan(arr)] = self.nodata_value
+        arr[np.isnan(arr)] = self.dst_nodata
 
         # Clean up
         ds_in = None
@@ -179,10 +189,10 @@ class GeoTiffReader:
 
 
 class NetCDFReader:
-    def __init__(self, source_path, variable="prediction", nodata_value=float(-9999)):
+    def __init__(self, source_path, variable="prediction", dst_nodata=float(-9999)):
         self.source_path = source_path
         self.variable = variable
-        self.nodata_value = nodata_value
+        self.dst_nodata = dst_nodata
 
     @_quiet_gdal_warnings
     def read_and_reproject(
@@ -345,7 +355,7 @@ class NetCDFReader:
             "xRes": cellsize,
             "yRes": -cellsize,
             "format": "MEM",
-            "dstNodata": self.nodata_value,
+            "dstNodata": self.dst_nodata,
             "targetAlignedPixels": True,
             # Use the base resolution, never a (e.g. average-built) overview.
             "overviewLevel": "NONE",
@@ -373,7 +383,7 @@ class NetCDFReader:
             )
 
         arr = ds_warp.ReadAsArray().astype(np.float32)
-        arr[arr == self.nodata_value] = np.nan
+        arr[arr == self.dst_nodata] = np.nan
 
         # Clean up
         ds_nc = None

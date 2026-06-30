@@ -283,12 +283,12 @@ def test_extends_override_is_physically_read(tmp_path):
 
     # 2020 overridden by the scenario -> value 20
     p2020 = flp.setup.resolve_raster(src, Path("ignored"), "2020_luse_ids.tif")
-    arr2020 = flp.io.GeoTiffReader(p2020, nodata_value=0).read_and_reproject(**grid)
+    arr2020 = flp.io.GeoTiffReader(p2020, dst_nodata=0).read_and_reproject(**grid)
     assert int(np.round(arr2020.mean())) == 20
 
     # 2019 inherited from the base -> value 10
     p2019 = flp.setup.resolve_raster(src, Path("ignored"), "2019_luse_ids.tif")
-    arr2019 = flp.io.GeoTiffReader(p2019, nodata_value=0).read_and_reproject(**grid)
+    arr2019 = flp.io.GeoTiffReader(p2019, dst_nodata=0).read_and_reproject(**grid)
     assert int(np.round(arr2019.mean())) == 10
 
 

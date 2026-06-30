@@ -107,45 +107,42 @@ def load_fluxpark_raster_inputs(
         imperv_file = impervdens_filename
 
     landuse_path = flp.setup.resolve_raster(input_sources, indir_rasters, landuse_file)
-    reader = flp.io.GeoTiffReader(landuse_path, nodata_value=0)
+    # Land use keeps the integer sentinel 0 as its dst_nodata (an int array
+    # cannot hold NaN); the model treats luse 0 as nodata everywhere
+    # (e.g. write_nan_for_landuse_ids defaults to [0, 17]).
+    reader = flp.io.GeoTiffReader(landuse_path, dst_nodata=0)
     landuse_map = reader.read_and_reproject(**grid_params, resample_alg="mode")
 
     if "x10" in soilm_scp_file.lower():
         conv = 0.1
     else:
         conv = 1.0
+    # Soil moisture is read with NaN nodata (the warp honours the source's own
+    # -9999/255 nodata); NaN * conv stays NaN, so nodata needs no special case.
     scp_path = flp.setup.resolve_raster(input_sources, indir_rasters, soilm_scp_file)
-    reader = flp.io.GeoTiffReader(scp_path, nodata_value=-9999)
-    soilm_scp_raw = reader.read_and_reproject(
-        **grid_params, resample_alg="med"
-    ).astype(np.float32)
-    soilm_scp = soilm_scp_raw * conv
-    soilm_scp[soilm_scp_raw == -9999] = -9999
+    reader = flp.io.GeoTiffReader(scp_path, dst_nodata=np.nan)
+    soilm_scp = reader.read_and_reproject(**grid_params, resample_alg="med") * conv
 
     if "x10" in soilm_pwp_file.lower():
         conv = 0.1
     else:
         conv = 1.0
     pwp_path = flp.setup.resolve_raster(input_sources, indir_rasters, soilm_pwp_file)
-    reader = flp.io.GeoTiffReader(pwp_path, nodata_value=-9999)
-    soilm_pwp_raw = reader.read_and_reproject(
-        **grid_params, resample_alg="med"
-    ).astype(np.float32)
-    soilm_pwp = soilm_pwp_raw * conv
-    soilm_pwp[soilm_pwp_raw == -9999] = -9999
+    reader = flp.io.GeoTiffReader(pwp_path, dst_nodata=np.nan)
+    soilm_pwp = reader.read_and_reproject(**grid_params, resample_alg="med") * conv
 
-    # 0 means 0% impervious (data), not nodata. Read with an out-of-range
-    # nodata (255) so averaging keeps a genuine 0: with dstNodata=0 GDAL bumps
-    # a valid averaged 0 to 1, which would add spurious runoff over sea and
-    # rural cells. Cells without coverage come back as 255 -> set to 0%.
+    # 0 means 0% impervious (data), not nodata. Reading with NaN nodata keeps a
+    # genuine averaged 0 (NaN never collides with a valid 0, so no spurious
+    # runoff). src_nodata="None" lets a legacy 0-as-nodata source count too.
+    # Cells without coverage come back as NaN -> set to 0%.
     imperv_path = flp.setup.resolve_raster(
         input_sources, indir_rasters, imperv_file
     )
-    reader = flp.io.GeoTiffReader(imperv_path, nodata_value=255)
+    reader = flp.io.GeoTiffReader(imperv_path, dst_nodata=np.nan)
     imperv = reader.read_and_reproject(
         **grid_params, resample_alg="average", src_nodata="None"
-    ).astype(np.float32)
-    imperv[imperv == 255] = 0.0
+    )
+    imperv[np.isnan(imperv)] = 0.0
     imperv = imperv / 100.0
 
     # # Mask open water and sea

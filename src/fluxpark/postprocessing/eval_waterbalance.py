@@ -279,6 +279,6 @@ def _load_luse_map_for_year(runner: "flp.FluxParkRunner", year: int) -> np.ndarr
 
     luse_filename = cfg.landuse_rastername.replace("{year}", str(map_year))
     reader = flp.io.GeoTiffReader(
-        runner.indir_rasters / luse_filename, nodata_value=0
+        runner.indir_rasters / luse_filename, dst_nodata=0
     )
     return reader.read_and_reproject(**runner.grid_params).astype(np.int32)
