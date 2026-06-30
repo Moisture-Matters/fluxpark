@@ -108,7 +108,7 @@ def load_fluxpark_raster_inputs(
 
     landuse_path = flp.setup.resolve_raster(input_sources, indir_rasters, landuse_file)
     reader = flp.io.GeoTiffReader(landuse_path, nodata_value=0)
-    landuse_map = reader.read_and_reproject(**grid_params)
+    landuse_map = reader.read_and_reproject(**grid_params, resample_alg="mode")
 
     if "x10" in soilm_scp_file.lower():
         conv = 0.1
@@ -116,7 +116,9 @@ def load_fluxpark_raster_inputs(
         conv = 1.0
     scp_path = flp.setup.resolve_raster(input_sources, indir_rasters, soilm_scp_file)
     reader = flp.io.GeoTiffReader(scp_path, nodata_value=-9999)
-    soilm_scp_raw = reader.read_and_reproject(**grid_params).astype(np.float32)
+    soilm_scp_raw = reader.read_and_reproject(
+        **grid_params, resample_alg="med"
+    ).astype(np.float32)
     soilm_scp = soilm_scp_raw * conv
     soilm_scp[soilm_scp_raw == -9999] = -9999
 
@@ -126,14 +128,25 @@ def load_fluxpark_raster_inputs(
         conv = 1.0
     pwp_path = flp.setup.resolve_raster(input_sources, indir_rasters, soilm_pwp_file)
     reader = flp.io.GeoTiffReader(pwp_path, nodata_value=-9999)
-    soilm_pwp_raw = reader.read_and_reproject(**grid_params).astype(np.float32)
+    soilm_pwp_raw = reader.read_and_reproject(
+        **grid_params, resample_alg="med"
+    ).astype(np.float32)
     soilm_pwp = soilm_pwp_raw * conv
     soilm_pwp[soilm_pwp_raw == -9999] = -9999
 
-    # 0 should be treated as 0, not as no data. Therefore dummy nodata_value 255.
-    imperv_path = flp.setup.resolve_raster(input_sources, indir_rasters, imperv_file)
-    reader = flp.io.GeoTiffReader(imperv_path, nodata_value=0)
-    imperv = reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
+    # 0 means 0% impervious (data), not nodata. Read with an out-of-range
+    # nodata (255) so averaging keeps a genuine 0: with dstNodata=0 GDAL bumps
+    # a valid averaged 0 to 1, which would add spurious runoff over sea and
+    # rural cells. Cells without coverage come back as 255 -> set to 0%.
+    imperv_path = flp.setup.resolve_raster(
+        input_sources, indir_rasters, imperv_file
+    )
+    reader = flp.io.GeoTiffReader(imperv_path, nodata_value=255)
+    imperv = reader.read_and_reproject(
+        **grid_params, resample_alg="average", src_nodata="None"
+    ).astype(np.float32)
+    imperv[imperv == 255] = 0.0
+    imperv = imperv / 100.0
 
     # # Mask open water and sea
     # mask = (landuse_map == 16) | (landuse_map == 17)

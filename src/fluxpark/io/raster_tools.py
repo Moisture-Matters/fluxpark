@@ -52,11 +52,12 @@ class GeoTiffReader:
         dst_epsg,
         bounds,
         cellsize,
-        resample_alg=gdal.GRA_NearestNeighbour,
+        resample_alg="near",
         cutline_path=None,
         fillnodata=False,
         tempfile_dir=None,
         source_extra=0,
+        src_nodata=None,
         **kwargs,
     ):
         """
@@ -82,6 +83,15 @@ class GeoTiffReader:
             Directory to write temporary file if fillnodata is True.
         source_extra : int, optional
             Pixel buffer for warp (e.g., to avoid edge artifacts). Default=0.
+        src_nodata : float or str, optional
+            Override for the source NoData value passed to ``gdal.Warp``. When
+            None (default) the source band's own NoData is honoured, so those
+            pixels are excluded from aggregating resampling (``"average"``,
+            ``"med"``, ...). Pass a value to treat a different number as NoData,
+            or the string ``"None"`` to disable source-NoData masking entirely,
+            so pixels otherwise tagged as NoData count as real data. Use the
+            latter for imperviousness, where 0 means 0% (real) rather than
+            missing, and should pull the average down.
         **kwargs : dummy
             This is used to permid using ad grid_params dict holding all info
 
@@ -139,6 +149,9 @@ class GeoTiffReader:
 
         if cutline_path:
             warp_opts["cutlineDSName"] = cutline_path
+
+        if src_nodata:
+            warp_opts["srcNodata"] = src_nodata
 
         # warp the original tiff to the correct coordinates and cellsize
         ds_warp = gdal.Warp("", ds_in, **warp_opts)

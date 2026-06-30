@@ -887,7 +887,9 @@ def read_static_maps(
         decid_path = resolve_raster(input_sources, indir_rasters, decid_filename)
         reader = flp.io.GeoTiffReader(decid_path, nodata_value=0)
         soil_cov_decid = (
-            reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
+            reader.read_and_reproject(
+                **grid_params, resample_alg="average"
+                ).astype(np.float32) / 100.0
         )
         soil_cov_decid[soil_cov_decid == 0] = np.nan
 
@@ -895,7 +897,9 @@ def read_static_maps(
         conif_path = resolve_raster(input_sources, indir_rasters, conif_filename)
         reader = flp.io.GeoTiffReader(conif_path, nodata_value=0)
         soil_cov_conif = (
-            reader.read_and_reproject(**grid_params).astype(np.float32) / 100.0
+            reader.read_and_reproject(
+                **grid_params, resample_alg="average"
+                ).astype(np.float32) / 100.0
         )
         soil_cov_conif[soil_cov_conif == 0] = np.nan
 
