@@ -99,6 +99,13 @@ def unsat_reservoirmodel(rain, etp, smd_old, soilm_scp, soilm_pwp):
     # to the next timestep is already bounded.
     smda = np.maximum(smda, 0.0)
 
-    # Pixels without valid soil parameters (nodata) produce meaningless values
-    # here; they are masked in post-processing, not handled in the model.
+    # Pixels without valid soil parameters (scp/pwp = NaN) have no reservoir:
+    # return NaN instead of a meaningless value, so the nodata propagates
+    # cleanly through the carried state and into post-processing.
+    nodata = np.isnan(soilm_scp) | np.isnan(soilm_pwp)
+    eta[nodata] = np.nan
+    smdp[nodata] = np.nan
+    smda[nodata] = np.nan
+    drainage[nodata] = np.nan
+
     return eta, smdp, smda, drainage

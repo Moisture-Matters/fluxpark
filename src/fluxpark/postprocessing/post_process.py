@@ -94,7 +94,7 @@ def post_process_daily(
         open_water = np.isin(landuse_map, open_water_ids)
     else:
         open_water = np.zeros(landuse_map.shape, dtype=bool)
-    soil_nodata = (soilm_pwp == -9999) | (soilm_scp == -9999)
+    soil_nodata = np.isnan(soilm_pwp) | np.isnan(soilm_scp)
     no_reservoir = open_water | soil_nodata
 
     # 3. Soil/land fluxes are undefined without a soil reservoir -> nodata (NaN).

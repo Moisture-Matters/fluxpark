@@ -107,7 +107,10 @@ class FluxParkConfig:
          density to have effect on calculations.
      write_nan_for_landuse_ids: list[int], default = [0, 17]
          When writing the output these land use map ids get nan. By default we do this
-         for sea (17) and for the no data value in the landuse map (0).
+         for sea (17) and for the no data value in the landuse map (0). The land use
+         map is always read with 0 as its nodata value, regardless of the source
+         convention (a source nodata of 255 is normalised to 0 on read), so 0 is the
+         correct id to list here.
      replace_nan_with_zero: bool, default = False
          If true, all nan values in output maps are replaced with zero.
      store_states : bool, default=False

@@ -49,6 +49,17 @@ def test_drainage_still_from_smdp():
     assert smda[0] == 0.0
 
 
+def test_nodata_soil_returns_nan():
+    # scp/pwp = NaN means no soil reservoir -> all outputs are NaN, so the
+    # nodata propagates cleanly instead of a meaningless value.
+    nan = _arr(np.nan)
+    eta, smdp, smda, drain = unsat_reservoirmodel(
+        _arr(5.0), _arr(3.0), _arr(2.0), nan, nan
+    )
+    assert np.isnan(eta[0]) and np.isnan(smda[0])
+    assert np.isnan(smdp[0]) and np.isnan(drain[0])
+
+
 def test_soilm_root_within_bounds_for_valid_pixels():
     rng = np.random.default_rng(0)
     n = 5000

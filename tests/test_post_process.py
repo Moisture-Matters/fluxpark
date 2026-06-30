@@ -10,7 +10,8 @@ import numpy as np  # noqa: E402
 
 from fluxpark.postprocessing.post_process import post_process_daily  # noqa: E402
 
-ND = -9999.0
+# Soil parameters use NaN as the internal nodata value.
+ND = np.nan
 
 
 def _call(landuse, soilm_pwp, soilm_scp, prec_surplus, rain,
