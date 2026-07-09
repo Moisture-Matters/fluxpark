@@ -181,6 +181,37 @@ def test_resolve_indir_placeholder_without_version_raises():
         raise AssertionError("expected RuntimeError for missing input_version")
 
 
+def test_resolve_indir_latest_reads_pointer(tmp_path):
+    line = tmp_path / "nweu"
+    line.mkdir()
+    (line / "latest").write_text("2026.06.0__full\n", encoding="utf-8")
+    resolved, line_root = flp.setup.resolve_indir(
+        str(line / "{input_version}"), "latest"
+    )
+    assert str(resolved).endswith("2026.06.0__full")
+    assert Path(line_root) == line
+
+
+def test_resolve_indir_latest_without_placeholder_raises():
+    try:
+        flp.setup.resolve_indir(r"C:/data/releases/nweu", "latest")
+    except RuntimeError as exc:
+        assert "placeholder" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for 'latest' without placeholder")
+
+
+def test_resolve_indir_latest_missing_pointer_raises(tmp_path):
+    line = tmp_path / "nweu"
+    line.mkdir()  # no 'latest' file present
+    try:
+        flp.setup.resolve_indir(str(line / "{input_version}"), "latest")
+    except RuntimeError as exc:
+        assert "latest" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for a missing 'latest' file")
+
+
 def test_table_path_by_name_alias(tmp_path):
     line = _make_line(tmp_path)
     src = flp.setup.load_input_sources(line / "2025.07.0")

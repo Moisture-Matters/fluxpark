@@ -12,11 +12,13 @@ import os
 
 from .input_sources import (
     EVAP_PARAMS_TABLE_NAME,
+    LATEST_VERSION_ALIAS,
     InputSources,
     is_release_dir,
     load_input_sources,
     localize_file,
     parent_dir,
+    read_latest_version,
     resolve_raster,
     resolve_table,
 )
@@ -194,7 +196,8 @@ def resolve_indir(
         an "{input_version}" placeholder.
     input_version
         Value to fill the placeholder. Required when the placeholder is
-        present; ignored otherwise.
+        present; ignored otherwise. The special value ``"latest"`` reads the
+        line's ``latest`` pointer file and uses the release named there.
 
     Returns
     -------
@@ -211,6 +214,11 @@ def resolve_indir(
     """
     indir_str = str(indir)
     if "{input_version}" not in indir_str:
+        if input_version == LATEST_VERSION_ALIAS:
+            raise RuntimeError(
+                "input_version='latest' requires indir to use the "
+                "'{input_version}' placeholder so the line root is known."
+            )
         if input_version:
             if flp.utils.is_url(indir):
                 last = indir_str.rstrip("/").rsplit("/", 1)[-1]
@@ -231,6 +239,8 @@ def resolve_indir(
             "input_version was not provided in the configuration."
         )
     line_root = indir_str.split("{input_version}")[0].rstrip("/\\")
+    if input_version == LATEST_VERSION_ALIAS:
+        input_version = read_latest_version(line_root)
     return indir_str.format(input_version=input_version), line_root
 
 

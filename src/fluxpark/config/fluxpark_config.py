@@ -54,7 +54,11 @@ class FluxParkConfig:
      input_version : Optional[str], default=None
          Version label of the input data, used to fill the "{input_version}"
          placeholder in `indir` (e.g. "2025.01.1__full"). Required when `indir`
-         contains the placeholder; ignored when it does not.
+         contains the placeholder; ignored when it does not. The special value
+         "latest" reads the line's `latest` pointer file and uses the release
+         named there (note: a "latest" run is less reproducible, but the release
+         actually used is still recorded in the output's FLUXPARK_INPUT_VERSION
+         metadata).
      indir_tables : Optional[Union[str, Path]], default=None
          Directory containing table input files. If None, defaults to `indir/tables`.
      indir_rasters : Optional[Union[str, Path]], default=None

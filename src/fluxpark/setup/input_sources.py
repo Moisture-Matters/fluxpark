@@ -32,6 +32,11 @@ from ..utils.common import is_url, join_path_or_url, to_gdal_path
 RELEASE_FILENAME = "release.yml"
 SOURCES_SNAPSHOT_FILENAME = "fluxpark_input_sources.json"
 
+# Plain-text pointer file (no extension) at the line root naming the newest
+# release; used when input_version is "latest".
+LATEST_FILENAME = "latest"
+LATEST_VERSION_ALIAS = "latest"
+
 # Stable release-alias for the evaporation parameter table.
 EVAP_PARAMS_TABLE_NAME = "evap_parameters"
 
@@ -193,6 +198,30 @@ class InputSources:
         with open(out_path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
         return out_path
+
+
+def read_latest_version(line_root: PathLike) -> str:
+    """Return the version named in the line's ``latest`` pointer file.
+
+    The ``latest`` file (plain text, no extension) sits at the line root and
+    contains the folder name of the newest release, e.g. ``2026.06.0__full``.
+    Works for a local path and a remote URL.
+    """
+    pointer = join_path_or_url(line_root, LATEST_FILENAME)
+    try:
+        text = _read_text(pointer)
+    except (FileNotFoundError, RuntimeError) as exc:
+        raise RuntimeError(
+            f"input_version='latest', but no '{LATEST_FILENAME}' pointer file "
+            f"was found at '{pointer}'. Create it containing the newest release "
+            f"folder name, or set input_version to a specific release."
+        ) from exc
+    version = text.strip()
+    if not version:
+        raise RuntimeError(
+            f"The '{LATEST_FILENAME}' pointer at '{pointer}' is empty."
+        )
+    return version
 
 
 def resolve_raster(
