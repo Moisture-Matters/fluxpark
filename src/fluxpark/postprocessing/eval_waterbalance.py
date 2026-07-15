@@ -262,6 +262,8 @@ def eval_waterbalance(
     df.to_csv(output_csv, index=False, float_format="%.3f")
     logger.info("Water balance evaluation written to %s", output_csv)
 
+    # this function built its own runner (setup only); release its resources
+    runner.close()
     return df
 
 
@@ -278,7 +280,10 @@ def _load_luse_map_for_year(runner: "flp.FluxParkRunner", year: int) -> np.ndarr
         map_year = int(valid[-1])
 
     luse_filename = cfg.landuse_rastername.replace("{year}", str(map_year))
-    reader = flp.io.GeoTiffReader(
-        runner.indir_rasters / luse_filename, dst_nodata=0
+    # resolve through the release (honouring extends) and join URL-safely;
+    # indir_rasters is a plain string for remote input, not a Path.
+    luse_path = flp.setup.resolve_raster(
+        runner.input_sources, runner.indir_rasters, luse_filename
     )
+    reader = flp.io.GeoTiffReader(luse_path, dst_nodata=0)
     return reader.read_and_reproject(**runner.grid_params).astype(np.int32)

@@ -201,6 +201,57 @@ def test_resolve_indir_latest_without_placeholder_raises():
         raise AssertionError("expected RuntimeError for 'latest' without placeholder")
 
 
+def test_prepare_inputs_with_version_but_unreadable_release_raises(tmp_path):
+    # an explicit input_version must not silently fall back to the legacy
+    # folder layout when release.yml cannot be read (e.g. missing credentials
+    # on remote input, or a wrong path).
+    version_dir = tmp_path / "2026.06.0__full"
+    version_dir.mkdir()  # exists, but contains no release.yml
+    cfg = flp.config.FluxParkConfig(
+        date_start="01-01-2021",
+        date_end="02-01-2021",
+        calc_epsg_code=28992,
+        x_min=0.0, x_max=100.0, y_min=0.0, y_max=100.0,
+        cellsize=25.0,
+        indir=str(tmp_path / "{input_version}"),
+        input_version="2026.06.0__full",
+        outdir=str(tmp_path / "out"),
+    )
+    try:
+        flp.setup.prepare_inputs(cfg)
+    except RuntimeError as exc:
+        assert "release.yml" in str(exc)
+        assert "input_version" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for unreadable release.yml")
+
+
+def test_input_context_close_removes_temp_dir(tmp_path):
+    # close() must remove the download dir explicitly and be idempotent, so
+    # cleanup never relies on garbage collection (ResourceWarning in e.g.
+    # long-lived processes or containers).
+    import tempfile
+
+    tmp = tempfile.TemporaryDirectory(prefix="fluxpark_input_")
+    ctx = flp.setup.InputContext(
+        outdir=tmp_path, tables=tmp_path, rasters=tmp_path, masks=tmp_path,
+        intermediate=None, input_sources=None,
+        download_dir=tmp.name, _tmp=tmp,
+    )
+    download_dir = Path(tmp.name)
+    assert download_dir.exists()
+    ctx.close()
+    assert not download_dir.exists()
+    assert ctx.download_dir is None
+    ctx.close()  # second call is a no-op
+
+    # a context without a temp dir (local inputs) is also fine
+    flp.setup.InputContext(
+        outdir=tmp_path, tables=tmp_path, rasters=tmp_path, masks=tmp_path,
+        intermediate=None, input_sources=None, download_dir=None,
+    ).close()
+
+
 def test_resolve_indir_latest_missing_pointer_raises(tmp_path):
     line = tmp_path / "nweu"
     line.mkdir()  # no 'latest' file present

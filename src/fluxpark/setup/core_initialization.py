@@ -454,6 +454,26 @@ class InputContext:
     download_dir: Optional[str]
     _tmp: Optional["tempfile.TemporaryDirectory"] = None
 
+    def close(self) -> None:
+        """Remove the temp download dir explicitly (idempotent).
+
+        Called by ``FluxParkRunner`` when a run finishes, so resource cleanup
+        does not rely on garbage collection. Safe to call more than once and
+        when there is no temp dir (local inputs).
+        """
+        if self._tmp is None:
+            return
+        try:
+            self._tmp.cleanup()
+        except OSError:
+            # e.g. a file still locked on Windows; the OS temp dir is
+            # cleaned up eventually, so do not fail the run over this.
+            logger.warning(
+                "Could not remove temp download dir '%s'.", self.download_dir
+            )
+        self._tmp = None
+        self.download_dir = None
+
 
 def prepare_inputs(cfg) -> InputContext:
     """Resolve all input locations and load the release for a run.
@@ -493,6 +513,23 @@ def prepare_inputs(cfg) -> InputContext:
         download_dir = tmp.name
 
     input_sources = load_input_sources(resolved_indir, download_dir=download_dir)
+
+    # An explicit input_version means the user intends a versioned release;
+    # silently falling back to the legacy folder layout would only fail later
+    # with a confusing message (e.g. about the evaporation table).
+    if input_sources is None and cfg.input_version:
+        release_path = flp.utils.join_path_or_url(resolved_indir, "release.yml")
+        hint = ""
+        if flp.utils.is_url(resolved_indir):
+            hint = (
+                " For remote input also check the GDAL HTTP credentials "
+                "(GDAL_HTTP_USERPWD / GDAL_HTTP_AUTH), which must be set "
+                "before the run, e.g. in the execution_context port."
+            )
+        raise RuntimeError(
+            f"input_version='{cfg.input_version}' was given, but "
+            f"'{release_path}' could not be read.{hint}"
+        )
 
     return InputContext(
         outdir=out_p,

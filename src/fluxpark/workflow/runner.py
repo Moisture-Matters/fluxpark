@@ -206,8 +206,33 @@ class FluxParkRunner:
             overhead_pct,
         )
 
+    def close(self) -> None:
+        """Release run resources (the temp download dir for remote inputs).
+
+        Idempotent; called automatically at the end of :meth:`run`. Call it
+        yourself (or use the runner as a context manager) when using
+        :meth:`setup` without :meth:`run`.
+        """
+        if self._inputs is not None:
+            self._inputs.close()
+
+    def __enter__(self) -> "FluxParkRunner":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        self.close()
+        return False
+
     def run(self) -> None:
         """Execute the FluxPark simulation."""
+        try:
+            self._run()
+        finally:
+            # remote inputs use a temp download dir (tables, cutline); release
+            # it explicitly instead of relying on garbage collection.
+            self.close()
+
+    def _run(self) -> None:
         self.setup()
         cfg = self.cfg
         old = self.old
