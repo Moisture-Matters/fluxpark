@@ -312,6 +312,17 @@ class FluxParkRunner:
                     urban_ids=cfg.urban_ids,
                     input_sources=self.input_sources,
                 )
+                
+                self.current_input_rasters = {
+                    "landuse_map": landuse_map,
+                    "soilm_scp": soilm_scp,
+                    "soilm_pwp": soilm_pwp,
+                    "imperv": imperv,
+                    "beta": beta,
+                }
+
+                self.ancillary_rasters = self.ports.ancillary_raster(self)
+                self.current_input_rasters.update(self.ancillary_rasters)
 
                 # Prevent NaN values in old["smda"] from propagating into new maps.
                 old["smda"] = np.where(np.isnan(old["smda"]), 0, old["smda"])
@@ -321,17 +332,6 @@ class FluxParkRunner:
             assert soilm_pwp is not None, "soilm_pwp must be defined"
             assert imperv is not None, "imperv must be defined"
             assert beta is not None, "beta must be defined"
-
-            self.current_input_rasters = {
-                "landuse_map": landuse_map,
-                "soilm_scp": soilm_scp,
-                "soilm_pwp": soilm_pwp,
-                "imperv": imperv,
-                "beta": beta,
-            }
-
-            self.ancillary_rasters = self.ports.ancillary_raster(self)
-            self.current_input_rasters.update(self.ancillary_rasters)
 
             tot_time_raster_prep += time.time() - start_time_raster_prep
 
