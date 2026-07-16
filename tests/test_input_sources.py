@@ -226,6 +226,33 @@ def test_prepare_inputs_with_version_but_unreadable_release_raises(tmp_path):
         raise AssertionError("expected RuntimeError for unreadable release.yml")
 
 
+def test_detect_dynamic_includes_impervdens(tmp_path):
+    # a forgotten static impervdens map must be caught by the consistency
+    # check, not later as a confusing "raster not declared" error.
+    (tmp_path / "2024_luse_ids.tif").touch()
+    static = dict(
+        landuse_filename="2024_luse_ids.tif",
+        root_soilm_scp_filename="2024_root_soilm_fc_scp_mm_x10.tif",
+        root_soilm_pwp_filename="2024_root_soilm_fc_pwp_mm_x10.tif",
+        indir_rasters=tmp_path,
+    )
+
+    try:
+        flp.setup.detect_dynamic_landuse_and_years(
+            **static, impervdens_filename="{year}_impervdens.tif"
+        )
+    except RuntimeError as exc:
+        assert "impervdens" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError for mixed static/dynamic")
+
+    dynamic, years = flp.setup.detect_dynamic_landuse_and_years(
+        **static, impervdens_filename="2024_impervdens.tif"
+    )
+    assert dynamic is False
+    assert list(years) == ["2024"]
+
+
 def test_input_context_close_removes_temp_dir(tmp_path):
     # close() must remove the download dir explicitly and be idempotent, so
     # cleanup never relies on garbage collection (ResourceWarning in e.g.

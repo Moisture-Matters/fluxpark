@@ -162,6 +162,7 @@ class FluxParkRunner:
                 cfg.landuse_rastername,
                 cfg.root_soilm_scp_rastername,
                 cfg.root_soilm_pwp_rastername,
+                cfg.impervdens_rastername,
                 self.indir_rasters,
                 self.input_sources,
             )

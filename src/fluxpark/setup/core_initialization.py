@@ -248,6 +248,7 @@ def detect_dynamic_landuse_and_years(
     landuse_filename,
     root_soilm_scp_filename,
     root_soilm_pwp_filename,
+    impervdens_filename,
     indir_rasters,
     input_sources=None,
 ):
@@ -262,6 +263,8 @@ def detect_dynamic_landuse_and_years(
         Filename pattern for soil moisture SCP maps.
     root_soilm_pwp_filename : str
         Filename pattern for soil moisture PWP maps.
+    impervdens_filename : str
+        Filename pattern for the imperviousness maps.
     indir_rasters : Path or str
         Directory containing input raster files. Used to discover years only
         when `input_sources` is None (legacy behavior).
@@ -278,21 +281,24 @@ def detect_dynamic_landuse_and_years(
     input_raster_years : ndarray
         Sorted unique list of years for which land-use maps exist.
     """
-    is_luse = flp.utils.has_placeholders(landuse_filename)
-    is_scp = flp.utils.has_placeholders(root_soilm_scp_filename)
-    is_pwp = flp.utils.has_placeholders(root_soilm_pwp_filename)
+    yearly_maps = [
+        landuse_filename,
+        root_soilm_scp_filename,
+        root_soilm_pwp_filename,
+        impervdens_filename,
+    ]
+    placeholders = [flp.utils.has_placeholders(name) for name in yearly_maps]
 
-    if is_luse and is_scp and is_pwp:
+    if all(placeholders):
         logger.info(
             "Dynamic land use enabled: yearly map reload if available"
         )
         dynamic = True
-    elif is_luse or is_scp or is_pwp:
+    elif any(placeholders):
         raise RuntimeError(
-            f"Not all input maps have '{{year}}' placeholder: "
-            f"{landuse_filename}, {root_soilm_scp_filename}, "
-            f"{root_soilm_pwp_filename}. Either all are static or all "
-            "are dynamic"
+            f"Not all input maps have the '{{year}}' placeholder: "
+            f"{', '.join(yearly_maps)}. Either all are static or all "
+            "are dynamic (note: this includes the imperviousness map)."
         )
     else:
         logger.info("Using static land use map")
