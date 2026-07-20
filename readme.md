@@ -30,7 +30,7 @@ The simplest approach is to run:
 conda install -c conda-forge gdal
 ```
 
-- GDAL >= 3.3.2
+- GDAL >= 3.10.2
 - Python >= 3.9
 
 If you have difficulty getting GDAL and FluxPark set up, we provide a ready‑made conda environment file:
