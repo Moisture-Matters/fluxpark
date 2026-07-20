@@ -81,6 +81,11 @@ class FluxParkRunner:
         self.provenance = flp.setup.build_provenance(
             self.input_sources, cfg.input_version, flp.__version__
         )
+        # the execution context may add runtime tags (see
+        # merge_extra_provenance), e.g. an orchestration-layer version
+        self.provenance = flp.setup.merge_extra_provenance(
+            self.provenance, self.context
+        )
         version = self.provenance["FLUXPARK_INPUT_VERSION"]
         if self.input_sources is not None:
             logger.info(
@@ -312,7 +317,7 @@ class FluxParkRunner:
                     urban_ids=cfg.urban_ids,
                     input_sources=self.input_sources,
                 )
-                
+
                 self.current_input_rasters = {
                     "landuse_map": landuse_map,
                     "soilm_scp": soilm_scp,

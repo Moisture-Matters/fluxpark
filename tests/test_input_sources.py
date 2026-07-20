@@ -226,6 +226,21 @@ def test_prepare_inputs_with_version_but_unreadable_release_raises(tmp_path):
         raise AssertionError("expected RuntimeError for unreadable release.yml")
 
 
+def test_merge_extra_provenance_from_context():
+    # the execution_context port can add runtime tags to the provenance
+    # stamped into output GeoTIFFs; values are coerced to str and a context
+    # without the key (or a non-dict context) leaves provenance unchanged.
+    base = {"FLUXPARK_VERSION": "1.0"}
+    merged = flp.setup.merge_extra_provenance(
+        dict(base), {"extra_provenance": {"MY_LAYER_VERSION": 1.2}}
+    )
+    assert merged["MY_LAYER_VERSION"] == "1.2"
+    assert merged["FLUXPARK_VERSION"] == "1.0"
+
+    assert flp.setup.merge_extra_provenance(dict(base), {}) == base
+    assert flp.setup.merge_extra_provenance(dict(base), None) == base
+
+
 def test_detect_dynamic_includes_impervdens(tmp_path):
     # a forgotten static impervdens map must be caught by the consistency
     # check, not later as a confusing "raster not declared" error.

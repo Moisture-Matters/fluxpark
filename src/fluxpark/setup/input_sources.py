@@ -293,6 +293,24 @@ def build_provenance(
     }
 
 
+def merge_extra_provenance(
+    provenance: Dict[str, str], context: Any
+) -> Dict[str, str]:
+    """Merge runtime provenance tags supplied by the execution context.
+
+    The execution_context port may return an ``extra_provenance`` mapping in
+    its context dict (e.g. the version of a private orchestration layer built
+    on top of FluxPark). Those tags are stamped into the output GeoTIFFs
+    alongside the ``FLUXPARK_*`` tags. Keys and values are coerced to str so
+    they are always writable as GeoTIFF metadata.
+    """
+    if not isinstance(context, dict):
+        return provenance
+    extra = context.get("extra_provenance") or {}
+    provenance.update({str(k): str(v) for k, v in extra.items()})
+    return provenance
+
+
 def _load_chain(indir: PathLike) -> List[Dict[str, Any]]:
     """Load the release at `indir` and its `extends` ancestors.
 
