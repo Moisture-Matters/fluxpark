@@ -700,21 +700,24 @@ def load_evap_params(
             "that declares an 'evap_parameters' table."
         )
 
-    # 1) get all sheet names
-    xls = pd.ExcelFile(path)
-    all_sheets = xls.sheet_names  # bijv. ['Daily', 'Monthly', 'LICENSE']
+    # 1) get all sheet names, then read the data sheets. Open the workbook
+    #    once inside a context manager so its file handle is always closed
+    #    (a bare pd.ExcelFile leaks the handle -> ResourceWarning, notably
+    #    for remote input read from a temp download dir).
+    with pd.ExcelFile(path) as xls:
+        all_sheets = xls.sheet_names  # e.g. ['Daily', 'Monthly', 'LICENSE']
 
-    # 2) remove 'LICENSE' sheet (case-insensitive)
-    data_sheets = [s for s in all_sheets if s.lower() != "license"]
+        # 2) remove 'LICENSE' sheet (case-insensitive)
+        data_sheets = [s for s in all_sheets if s.lower() != "license"]
 
-    # 3) read only filtered sheets
-    sheets_dict = pd.read_excel(
-        path,
-        sheet_name=data_sheets,
-        skiprows=range(12),
-        usecols="A:I",
-        na_values=str(-9999),
-    )
+        # 3) read only filtered sheets
+        sheets_dict = pd.read_excel(
+            xls,
+            sheet_name=data_sheets,
+            skiprows=range(12),
+            usecols="A:I",
+            na_values=str(-9999),
+        )
 
     # 4) Concat en return een enkele DataFrame
     df = pd.concat(sheets_dict.values(), ignore_index=True)
