@@ -19,12 +19,16 @@ def validate_grid(
     name : str, default="grid"
         Name used in error messages.
     nan_policy : {"error", "skip", "allow"}, default="error"
-        Policy for handling NaN values.
+        Policy for handling NaN values *inside* a returned grid. A ``None``
+        return is handled separately: it always skips the day (see Returns),
+        so a provider can signal "no data for this day" while genuine NaNs
+        in a grid still error under the default policy.
 
     Returns
     -------
     bool
-        True if the current day should be skipped, otherwise False.
+        True if the current day should be skipped, otherwise False. ``None``
+        (no data for the day) always returns True, independent of nan_policy.
 
     Raises
     ------
@@ -45,9 +49,11 @@ def validate_grid(
         raise TypeError("expected_shape must be a tuple of two integers.")
 
     if value is None:
-        if nan_policy == "skip":
-            return True
-        raise ValueError(f"{name} is None.")
+        # None means "no data for this day" and always skips it, regardless
+        # of nan_policy. That policy governs NaN *inside* a returned grid (a
+        # different concern): a genuinely corrupt grid still errors under
+        # "error". A provider signals "skip this day" by returning None.
+        return True
 
     if isinstance(value, str):
         raise TypeError(f"{name} must be a 2D numeric array, not a string.")
