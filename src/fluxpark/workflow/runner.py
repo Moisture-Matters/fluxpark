@@ -52,6 +52,9 @@ class FluxParkRunner:
         self.current_input_rasters: Dict[str, Any] = {}
         self.current_evap_params: Dict[str, Any] = {}
 
+        # named timings contributed by ports/adapters (see add_timing)
+        self._extra_timings: Dict[str, float] = {}
+
     def setup(self) -> None:
         """Prepare static data and initial model state."""
         # show FluxPark log output by default; respects an explicit
@@ -193,6 +196,17 @@ class FluxParkRunner:
         # optional initial data/state override
         self.initial_data = self.ports.initial_data(self)
         self.old.update(self.initial_data.get("old", {}))
+
+    def add_timing(self, label: str, seconds: float) -> None:
+        """Accumulate a named timing contributed by a port/adapter.
+
+        Merged into the run's timing summary, so time spent inside a port
+        (e.g. an upload in the output hook) shows as its own line and is
+        excluded from 'initialization and overhead'.
+        """
+        self._extra_timings[label] = (
+            self._extra_timings.get(label, 0.0) + seconds
+        )
 
     def _log_timing_summary(self, timings: Dict[str, float], total_time: float) -> None:
         """Log timing summary for the run."""
@@ -565,6 +579,8 @@ class FluxParkRunner:
             "post-processing": tot_time_postp,
             "writing output": tot_time_writing,
         }
+        for label, seconds in self._extra_timings.items():
+            timings[label] = timings.get(label, 0.0) + seconds
         self._log_timing_summary(timings, total_time)
 
         if cfg.eval_waterbalance:
