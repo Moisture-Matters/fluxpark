@@ -237,7 +237,7 @@ def apply_evaporation_parameters(
     ep = {k: v[mask_doy] for k, v in evap_params.items()}
 
     # 2) build direct lookup tables indexed by evap_id
-    max_id = int(landuse_map.max()) + 1
+    max_id = max(int(landuse_map.max()), int(np.max(luse_ids))) + 1
     tf_map = np.zeros(max_id, dtype="float32")
     se_map = np.zeros(max_id, dtype="float32")
     ic_map = np.zeros(max_id, dtype="float32")
