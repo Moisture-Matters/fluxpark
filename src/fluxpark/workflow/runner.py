@@ -360,7 +360,7 @@ class FluxParkRunner:
                 self.luse_ids,
                 self.evap_ids,
                 self.evap_params,
-                date.dayofyear,
+                date.day_of_year,
                 landuse_map,
                 imperv,
                 cfg.urban_ids,
