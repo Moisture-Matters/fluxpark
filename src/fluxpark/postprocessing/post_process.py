@@ -194,12 +194,14 @@ def update_cumulative_fluxes(
             old[py_key] = np.zeros_like(old[py_key])
 
     # 2. KNMI precip deficit reset on April 1
+    knmi_key = "prec_def_knmi_cum_ytd_mm"
     if (
-        "rain_def_pot_etref_c" in old
+        knmi_key in cum_par_list
         and current_date.day == 1
         and current_date.month == 4
     ):
-        old["rain_def_pot_etref_c"] = np.zeros_like(old["rain_def_pot_etref_c"])
+        py_key = conv_output[knmi_key]
+        old[py_key] = np.zeros_like(old[py_key])
 
     # 3. Accumulate
     cum: dict[str, np.ndarray] = {}
