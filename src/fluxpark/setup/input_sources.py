@@ -145,6 +145,10 @@ class InputSources:
             raise KeyError(f"Raster '{filename}' is not declared in the release.")
         return join_path_or_url(info["dir"], filename)
 
+    def has_raster(self, filename: str) -> bool:
+        """Return True if the release chain declares this raster file."""
+        return filename in self._raster_src
+
     def table_path(self, filename: str) -> PathLike:
         """Local path of a table file, downloading it when it is remote."""
         directory = self._table_dir_by_file.get(filename)
@@ -237,6 +241,21 @@ def resolve_raster(
     if input_sources is not None:
         return input_sources.raster_path(filename)
     return join_path_or_url(indir_rasters, filename)
+
+
+def raster_available(
+    input_sources: Optional["InputSources"],
+    indir_rasters: PathLike,
+    filename: str,
+) -> bool:
+    """Return True if a raster is available for this run.
+
+    With a release this means the chain declares it in ``release.yml``;
+    for a legacy folder it means the file exists in `indir_rasters`.
+    """
+    if input_sources is not None:
+        return input_sources.has_raster(filename)
+    return _exists(join_path_or_url(indir_rasters, filename))
 
 
 def resolve_table(

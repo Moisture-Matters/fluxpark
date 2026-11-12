@@ -18,6 +18,7 @@ from .input_sources import (
     load_input_sources,
     localize_file,
     parent_dir,
+    raster_available,
     read_latest_version,
     resolve_raster,
     resolve_table,
@@ -908,7 +909,7 @@ def read_static_maps(
     mods: dict[str, bool],
     decid_filename: str,
     conif_filename: str,
-    drynature_filename: str,
+    drynature_filename: Optional[str],
     input_sources=None,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """
@@ -927,7 +928,8 @@ def read_static_maps(
     decid_filename
         The decideous forest soil cover file name
     drynature_filename
-        The dry nature soil cover file name
+        The dry nature soil cover file name. The map is skipped (None) when
+        this is None or the input does not provide the raster.
     input_sources : InputSources, optional
         Resolved input sources; when given each raster is located through it
         (honouring ``extends``) instead of `indir_rasters`.
@@ -968,15 +970,27 @@ def read_static_maps(
             ) / 100.0
         )
 
-        # Dry nature cover
-        drynature_path = resolve_raster(
+        # Dry nature cover is optional: skipped when the name is None or the
+        # input (release.yml, or the legacy folder) does not provide it, so
+        # older releases keep working; land use 14 then keeps its table values.
+        if drynature_filename is not None and not raster_available(
             input_sources, indir_rasters, drynature_filename
-        )
-        reader = flp.io.GeoTiffReader(drynature_path, dst_nodata=np.nan)
-        soil_cov_drynature = (
-            reader.read_and_reproject(
-                **grid_params, resample_alg="average"
-            ) / 100.0
-        )
+        ):
+            logger.info(
+                "Dry nature cover raster '%s' not available in the input; "
+                "mod_vegcover scales only the forests.",
+                drynature_filename,
+            )
+            drynature_filename = None
+        if drynature_filename is not None:
+            drynature_path = resolve_raster(
+                input_sources, indir_rasters, drynature_filename
+            )
+            reader = flp.io.GeoTiffReader(drynature_path, dst_nodata=np.nan)
+            soil_cov_drynature = (
+                reader.read_and_reproject(
+                    **grid_params, resample_alg="average"
+                ) / 100.0
+            )
 
     return soil_cov_decid, soil_cov_conif, soil_cov_drynature

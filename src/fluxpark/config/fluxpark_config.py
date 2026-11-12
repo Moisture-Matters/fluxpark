@@ -86,8 +86,11 @@ class FluxParkConfig:
          Filename of the deciduous forest cover raster.
      soil_cov_conif_rastername : str, default="forest_conif_soilcov_pct.tif"
          Filename of the coniferous forest cover raster.
-     soil_cov_drynature_rastername : str, default="drynature_soilcov_pct.tif"
-         Filename of the dry nature (land use 14) cover raster.
+     soil_cov_drynature_rastername : Optional[str], default="drynature_soilcov_pct.tif"
+         Filename of the dry nature (land use 14) cover raster. Optional: when
+         the input release (or legacy folder) does not provide it, or it is set
+         to ``None``, mod_vegcover scales only the forests and land use 14 keeps
+         its table values.
      output_mapping : str, default="fluxpark_output_mapping.csv"
          Filename of the mapping table from variables to parameters.
      evap_param_table : Optional[str], default=None
@@ -177,7 +180,7 @@ class FluxParkConfig:
     impervdens_rastername: str = "{year}_impervdens.tif"
     soil_cov_decid_rastername: str = "forest_decid_soilcov_pct.tif"
     soil_cov_conif_rastername: str = "forest_conif_soilcov_pct.tif"
-    soil_cov_drynature_rastername: str = "drynature_soilcov_pct.tif"
+    soil_cov_drynature_rastername: Optional[str] = "drynature_soilcov_pct.tif"
     output_mapping: str = "fluxpark_output_mapping.csv"
     evap_param_table: Optional[str] = None
 

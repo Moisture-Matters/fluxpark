@@ -282,16 +282,18 @@ def apply_evaporation_parameters(
         ic[ic < 0.2] = 0.2
         int_cap[urban_mask] = ic
 
-    cover_maps = (soil_cov_decid, soil_cov_conif, soil_cov_drynature)
-    if mod_vegcover and all(m is not None for m in cover_maps):
-        for luse_id in (11, 12, 14, 19):
-            if luse_id == 11:
-                cover_map = soil_cov_decid
-            elif luse_id == 14:
-                cover_map = soil_cov_drynature
-            else:
-                cover_map = soil_cov_conif
-
+    # 5) vegetation cover: scale soil_cov with the cover map of the land use;
+    #    a land use whose map is None keeps its table values.
+    cover_maps = {
+        11: soil_cov_decid,
+        12: soil_cov_conif,
+        14: soil_cov_drynature,
+        19: soil_cov_conif,
+    }
+    if mod_vegcover:
+        for luse_id, cover_map in cover_maps.items():
+            if cover_map is None:
+                continue
             mask = (landuse_map == luse_id) & (~np.isnan(cover_map))
             max_table_cov = np.max(
                 evap_params["soil_cov"][evap_params["evap_id"] == luse_id]
