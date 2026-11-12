@@ -191,6 +191,7 @@ def apply_evaporation_parameters(
     mod_vegcover: bool = False,
     soil_cov_decid: Optional[NDArray[np.floating]] = None,
     soil_cov_conif: Optional[NDArray[np.floating]] = None,
+    soil_cov_drynature: Optional[NDArray[np.floating]] = None,
 ) -> EvapParamDict:
     """
     Apply evaporation parameters based on land use and day of year.
@@ -218,6 +219,8 @@ def apply_evaporation_parameters(
         Map with spatial vegetation cover for deciduous forests.
     soil_cov_conif : ndarray, optional
         Map with spatial vegetation cover for coniferous forests.
+    soil_cov_drynature : ndarray, optional
+        Map with spatial vegetation cover for dry nature (land use 14).
 
     Returns
     -------
@@ -279,10 +282,13 @@ def apply_evaporation_parameters(
         ic[ic < 0.2] = 0.2
         int_cap[urban_mask] = ic
 
-    if mod_vegcover and soil_cov_conif is not None and soil_cov_decid is not None:
-        for luse_id in (11, 12, 19):
+    cover_maps = (soil_cov_decid, soil_cov_conif, soil_cov_drynature)
+    if mod_vegcover and all(m is not None for m in cover_maps):
+        for luse_id in (11, 12, 14, 19):
             if luse_id == 11:
                 cover_map = soil_cov_decid
+            elif luse_id == 14:
+                cover_map = soil_cov_drynature
             else:
                 cover_map = soil_cov_conif
 

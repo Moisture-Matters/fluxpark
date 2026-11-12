@@ -14,7 +14,7 @@ resampling method is chosen per parameter type:
 | Land use (`luse_ids`) | `mode` | categorical: take the dominant class in the cell |
 | Soil moisture FC–SCP / FC–PWP (`*_x10`) | `med` (median) | robust central value of a continuous field |
 | Imperviousness (`impervdens`) | `average` | mean impervious density; 0% counts as data |
-| Forest soil cover (`*_soilcov_pct`) | `average` | mean cover fraction over the cell |
+| Forest and dry nature soil cover (`*_soilcov_pct`) | `average` | mean cover fraction over the cell |
 | Rain, ETref (meteo, via adapters) | `bilinear` (default) | smooth continuous meteo fields |
 
 The aggregating methods (`mode`, `med`, `average`) ignore the **source** nodata,
@@ -37,7 +37,7 @@ parameter:
 | Land use | integer class id | `0` (sentinel; an int array cannot hold NaN) |
 | Soil moisture | mm (`raw × 0.1` for `_x10`) | `NaN` |
 | Imperviousness | fraction `0–1` (`÷100`) | none — outside coverage set to `0` (0%) |
-| Forest soil cover | fraction `0–1` (`÷100`) | `NaN` ("no cover here") |
+| Forest and dry nature soil cover | fraction `0–1` (`÷100`) | `NaN` ("no cover here") |
 | Rain, ETref | mm | `NaN`, handled by `nan_policy` |
 
 The float rasters are read with `dst_nodata=np.nan`: `read_and_reproject`
@@ -102,7 +102,7 @@ at different stages:
 
 The write step then applies, in order:
 
-1. forest cover fractions are scaled back to percent (`soil_cov × 100`);
+1. forest and dry nature cover fractions are scaled back to percent (`soil_cov × 100`);
 2. `write_nan_for_landuse_ids` → `NaN` for the listed classes;
 3. `replace_nan_with_zero` → `NaN` becomes `0` when enabled;
 4. any `NaN` still left becomes **`-9999`**, the nodata value of the written

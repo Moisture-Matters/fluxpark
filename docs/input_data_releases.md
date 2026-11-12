@@ -99,6 +99,8 @@ rasters:
         file: "forest_conif_soilcov_pct.tif"
       - name: forest_decid_soilcov_pct
         file: "forest_decid_soilcov_pct.tif"
+      - name: drynature_soilcov_pct
+        file: "drynature_soilcov_pct.tif"
 
 tables:
   - name: evap_parameters

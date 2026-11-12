@@ -908,10 +908,11 @@ def read_static_maps(
     mods: dict[str, bool],
     decid_filename: str,
     conif_filename: str,
+    drynature_filename: str,
     input_sources=None,
-) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
     """
-    Load static rasters: forest cover maps.
+    Load static rasters: forest and dry nature cover maps.
 
     Parameters
     ----------
@@ -925,6 +926,8 @@ def read_static_maps(
         The coniferous forest soil cover file name
     decid_filename
         The decideous forest soil cover file name
+    drynature_filename
+        The dry nature soil cover file name
     input_sources : InputSources, optional
         Resolved input sources; when given each raster is located through it
         (honouring ``extends``) instead of `indir_rasters`.
@@ -935,14 +938,18 @@ def read_static_maps(
         Deciduous forest cover fraction or None.
     soil_cov_conif
         Coniferous forest cover fraction or None.
+    soil_cov_drynature
+        Dry nature cover fraction or None.
     """
     soil_cov_decid = None
     soil_cov_conif = None
+    soil_cov_drynature = None
     if mods.get("mod_vegcover", False):
-        # Forest cover is read with NaN nodata (the warp honours the source's
-        # own 0/255 nodata). "No forest" cells come back as NaN directly, so the
-        # mod_vegcover scaling (guarded by ~isnan) falls back to the table
-        # default there; a genuine 0% cover, if present, stays 0 (data).
+        # Cover is read with NaN nodata (the warp honours the source's own
+        # 0/255 nodata). "No forest / dry nature" cells come back as NaN
+        # directly, so the mod_vegcover scaling (guarded by ~isnan) falls back
+        # to the table default there; a genuine 0% cover, if present, stays 0
+        # (data).
         # Deciduous cover
         decid_path = resolve_raster(input_sources, indir_rasters, decid_filename)
         reader = flp.io.GeoTiffReader(decid_path, dst_nodata=np.nan)
@@ -961,4 +968,15 @@ def read_static_maps(
             ) / 100.0
         )
 
-    return soil_cov_decid, soil_cov_conif
+        # Dry nature cover
+        drynature_path = resolve_raster(
+            input_sources, indir_rasters, drynature_filename
+        )
+        reader = flp.io.GeoTiffReader(drynature_path, dst_nodata=np.nan)
+        soil_cov_drynature = (
+            reader.read_and_reproject(
+                **grid_params, resample_alg="average"
+            ) / 100.0
+        )
+
+    return soil_cov_decid, soil_cov_conif, soil_cov_drynature

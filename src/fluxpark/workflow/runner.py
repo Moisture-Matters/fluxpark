@@ -177,12 +177,17 @@ class FluxParkRunner:
         )
 
         # static input rasters
-        self.soil_cov_decid, self.soil_cov_conif = flp.setup.read_static_maps(
+        (
+            self.soil_cov_decid,
+            self.soil_cov_conif,
+            self.soil_cov_drynature,
+        ) = flp.setup.read_static_maps(
             self.indir_rasters,
             self.grid_params,
             self.mods,
             cfg.soil_cov_decid_rastername,
             cfg.soil_cov_conif_rastername,
+            cfg.soil_cov_drynature_rastername,
             self.input_sources,
         )
 
@@ -367,6 +372,7 @@ class FluxParkRunner:
                 mod_vegcover=cfg.mod_vegcover,
                 soil_cov_decid=self.soil_cov_decid,
                 soil_cov_conif=self.soil_cov_conif,
+                soil_cov_drynature=self.soil_cov_drynature,
             )
             tot_time_evappar_prep += time.time() - start_time_evappar_prep
 
